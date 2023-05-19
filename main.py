@@ -1,6 +1,331 @@
 import pygame
 
 
+class Component:
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio=0, y_ratio=0):
+        self.width = int(parent_rect.width * width_ratio)
+        self.height = int(parent_rect.height * height_ratio)
+        self.x = parent_rect.x + int(parent_rect.width * x_ratio)
+        self.y = parent_rect.y + int(parent_rect.height * y_ratio)
+        self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def render(self, screen):
+        pygame.draw.rect(screen, (255, 0, 0), self.rect, 2)
+
+
+class Panel(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio):
+        super().__init__(parent_rect, width_ratio, height_ratio)  # 26.5% of the window width, Full height
+
+        # Create the leader box
+        self.leader_box_op = LeaderBox(self.rect, 0.314, 0.125, 0.275,
+                                       0.0755)
+
+        # Create the leader container
+        self.leader_container_op = LeaderContainer(self.rect, 0.63, 1)
+
+        # Create the leader active
+        self.leader_active_op = LeaderActive(self.rect, 0.24, 0.28, 0.75,
+                                             0.33)
+
+        # Create the stats_op component
+        self.stats_op = Stats(self.rect, 0.89, 0.125, 0,
+                              0.2425,
+                              True)  # 89% of the panel_left width, 12.5% of the panel_left height, positioned within the panel_left
+
+        self.weather = Weather(self, 0.549, 0.1275, 0.279,
+                               0.416)
+        self.weather.add_weather('rain')
+        # self.weather.add_weather('fog')
+        self.weather.add_weather('frost')
+
+        self.stats_me = Stats(self.rect, 0.89, 0.125, 0,
+                              0.6175, False)
+        # Create the leader box
+        self.leader_box_me = LeaderBox(self.rect, 0.314, 0.125, 0.275,
+                                       0.7755)
+
+        # Create the leader container
+        self.leader_container_me = LeaderContainer(self.rect, 0.63, 1)
+
+        # Create the leader active
+        self.leader_active_me = LeaderActive(self.rect, 0.24, 0.28, 0.75,
+                                             0.33)
+
+    def draw(self, screen):
+        self.stats_op.draw(screen)
+        self.weather.draw(screen)
+        self.stats_me.draw(screen)
+
+
+class LeaderBox(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)  # 31.4% of the panel width, 12.5% of the panel height, 27.5% from the left edge of the panel, 7.55% from the top of the panel
+
+
+class LeaderContainer(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio):
+        super().__init__(parent_rect, width_ratio,
+                         height_ratio)  # 63% of the leader_box width, 100% of the leader_box height
+        self.x = parent_rect.x + (
+                parent_rect.width - self.width) // 2  # The leader_container is centered within the leader_box
+        self.y = parent_rect.y + (
+                parent_rect.height - self.height) // 2  # The leader_container is centered within the leader_box
+        self.rect = pygame.Rect(self.x, self.y, self.width,
+                                self.height)  # Update the rect with the new x, y coordinates
+
+
+class LeaderActive(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)  # 24% of the leader_box width, 28% of the leader_box height, positioned within the leader_box
+
+
+class Stats(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
+        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)
+        self.font_small = ResizableFont('Arial Narrow.ttf', 24)
+        self.surface = pygame.Surface((self.width, self.height))
+        self.surface.fill((20, 20, 20))
+        self.surface.set_alpha(128)
+
+        if is_opponent:
+            self.profile_image = ProfileImage(self, 0.219, 0.8, 0.284,
+                                              0.096,
+                                              'monsters',
+                                              True)  # 21.9% of the stats_op width, 80% of the stats_op height, positioned within the stats_op
+            self.name = PlayerName(self, 0.47, 0.2, 0.53,
+                                   0,
+                                   True)  # 47% of the stats_op width, 20% of the stats_op height, positioned within the stats_op 53%
+            self.deck_name = DeckName(self, 0.47, 0.125, 0.53,
+                                      0.25,
+                                      "Monsters")  # 47% of the stats_op width, 8% of the stats_op height, positioned within the stats_op
+            self.hand_count = HandCount(self, 0.17, 0.295, 0.5325,
+                                        0.585)  # 17% of the stats_op width, 29.5% of the stats_op height, positioned within the stats_op
+            self.gem1 = Gem(self, 0.09, 0.31, 0.8,
+                            0.56)  # 9% of the panel_left's width, 31% of the stats_op height, positioned within the stats_op
+            self.gem2 = Gem(self, 0.09, 0.31, 0.7075,
+                            0.5625)  # 9% of the panel_left's width, 31% of the stats_op height, positioned within the stats_op
+
+            self.score_total = ScoreTotal(self, 0.12, 0.4, 0.94, 0.32, True)
+            self.score_total.set_score(10, True)
+            self.passed = Passed(self, 0.25, 0.25, 0.9, 0.87)
+        else:
+            self.profile_image = ProfileImage(self, 0.219, 0.8, 0.284,
+                                              0.096,
+                                              'monsters',
+                                              False)  # 21.9% of the stats_op width, 80% of the stats_op height, positioned within the stats_op
+            self.name = PlayerName(self, 0.47, 0.2, 0.53,
+                                   0.56,
+                                   False)  # 47% of the stats_op width, 20% of the stats_op height, positioned within the stats_op 53%
+            self.deck_name = DeckName(self, 0.47, 0.125, 0.53,
+                                      0.80,
+                                      "Monsters")  # 47% of the stats_op width, 8% of the stats_op height, positioned within the stats_op
+            self.hand_count = HandCount(self, 0.17, 0.295, 0.5325,
+                                        0.185)  # 17% of the stats_op width, 29.5% of the stats_op height, positioned within the stats_op
+            self.gem1 = Gem(self, 0.09, 0.31, 0.8,
+                            0.145)  # 9% of the panel_left's width, 31% of the stats_op height, positioned within the stats_op
+            self.gem2 = Gem(self, 0.09, 0.31, 0.7075,
+                            0.145)  # 9% of the panel_left's width, 31% of the stats_op height, positioned within the stats_op
+
+            self.score_total = ScoreTotal(self, 0.12, 0.4, 0.944, 0.31, False)
+            self.score_total.set_score(10, True)
+            self.passed = Passed(self, 0.25, 0.25, 0.9, 0.87)
+
+    def draw(self, screen):
+        screen.blit(self.surface, (self.x, self.y))
+        self.profile_image.draw(screen)
+        # self.profile_image.render(screen)
+        self.name.draw(screen)
+        # self.opponent_name.render(screen)
+        self.deck_name.draw(screen)
+        # self.deck_name_op.render(screen)
+        self.hand_count.draw(screen)
+        # self.hand_count_op.render(screen)
+        self.gem1.draw(screen)
+        self.gem2.draw(screen)
+        self.score_total.draw(screen)
+        self.passed.draw(screen)
+        # self.passed_op.render(screen)
+
+
+class ProfileImage(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, faction, opponent):
+        super().__init__(
+            parent_rect, width_ratio, height_ratio, x_ratio,
+            y_ratio)
+        self.opponent = opponent
+        self.profile_img_pic = pygame.image.load('img/icons/profile.png')
+        self.profile_img_pic = pygame.transform.scale(self.profile_img_pic, (self.width, self.height))
+        self.background_image = pygame.image.load('img/icons/icon_player_border.png')
+        self.background_image = pygame.transform.scale(self.background_image,
+                                                       (int(self.width * 1.18), int(self.height * 1.18)))
+        self.faction_img_pic = pygame.image.load(f'img/icons/deck_shield_{faction}.png')
+        self.faction_img_pic = pygame.transform.scale(self.faction_img_pic,
+                                                      (int(self.background_image.get_width() * 0.43),
+                                                       int(self.background_image.get_height() * 0.43)))
+
+    def draw(self, screen):
+        screen.blit(self.profile_img_pic, (self.x, self.y))
+        screen.blit(self.background_image, (self.x - int(self.width * 0.1), self.y - int(self.height * 0.06)))
+        if self.opponent:
+            screen.blit(self.faction_img_pic,
+                        (self.x - int(self.width * 0.1) - int(self.background_image.get_width() * 0.105),
+                         self.y - int(self.background_image.get_height() * 0.05)))
+        else:
+            screen.blit(self.faction_img_pic,
+                        (self.x - int(self.width * 0.1) - int(self.background_image.get_width() * 0.105),
+                         self.y + int(self.background_image.get_height() * 0.58)))
+
+
+class PlayerName(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
+        super().__init__(
+            parent_rect, width_ratio, height_ratio, x_ratio,
+            y_ratio)
+        self.font_size = int(parent_rect.height * height_ratio)  # 20% of the stats_op height
+        self.font = ResizableFont('Arial Narrow.ttf', self.font_size)
+        if is_opponent:
+            self.text = self.font.font.render('Opponent', True, (218, 165, 32))  # RGB white color
+        else:
+            self.text = self.font.font.render('Player', True, (218, 165, 32))  # RGB white color
+
+    def draw(self, screen):
+        screen.blit(self.text, (self.x, self.y))
+
+
+class DeckName(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, deck_name):
+        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)
+        self.font_size = int(parent_rect.height * height_ratio)  # 16% of the stats_op height
+        self.font = ResizableFont('Arial Narrow.ttf', self.font_size)
+        self.text = self.font.font.render(deck_name, True, (210, 180, 140))  # RGB for tan color
+
+    def draw(self, screen):
+        screen.blit(self.text, (self.x, self.y))
+
+
+class Gem(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)
+        self.gem_on_image = pygame.image.load('img/icons/icon_gem_on.png')
+        self.gem_on_image = pygame.transform.scale(self.gem_on_image, (self.width, self.height))
+
+    def draw(self, screen):
+        screen.blit(self.gem_on_image, (self.x, self.y))
+
+    def change_gem(self, on):
+        if on:
+            self.gem_on_image = pygame.image.load('img/icons/icon_gem_on.png')
+            self.gem_on_image = pygame.transform.scale(self.gem_on_image, (self.width, self.height))
+        else:
+            self.gem_on_image = pygame.image.load('img/icons/icon_gem_off.png')
+            self.gem_on_image = pygame.transform.scale(self.gem_on_image, (self.width, self.height))
+
+
+class HandCount(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)
+        self.font_small = ResizableFont('Arial Narrow.ttf', 24)
+        self.hand_count_image = pygame.image.load('img/icons/icon_card_count.png')
+        self.hand_count_image = scale_surface(self.hand_count_image, (self.width, self.height))
+        self.hand_count_op_text_rect = pygame.Rect(self.x + self.hand_count_image.get_width(), self.y,
+                                                   self.width - self.hand_count_image.get_width(), self.height)
+        self.hand_count_op_text = fit_text_in_rect("10", self.font_small, (218, 165, 32),
+                                                   self.hand_count_op_text_rect)
+
+    def draw(self, screen):
+        screen.blit(self.hand_count_image, (self.x, self.y))
+        draw_centered_text(screen, self.hand_count_op_text, self.hand_count_op_text_rect)
+
+    def change_count(self, count):
+        self.hand_count_op_text = fit_text_in_rect(str(count), self.font_small, (218, 165, 32),
+                                                   self.hand_count_op_text_rect)
+
+
+class ScoreTotal(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
+        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)  # 12% of the parent width, 40% of the parent height,
+        # positioned at 94.5% of the parent width, 25% of the parent height
+        self.is_opponent = is_opponent
+
+        if self.is_opponent:
+            self.image = pygame.image.load('img/icons/score_total_op.png')
+        else:
+            self.image = pygame.image.load('img/icons/score_total_me.png')
+
+        self.image = pygame.transform.scale(self.image, (self.width, self.height))
+
+        self.font_small = ResizableFont('Arial Narrow.ttf', 24)
+        self.text_color = (0, 0, 0)
+        self.text_rect = pygame.Rect(self.x, self.y, self.width, self.height)
+        self.text = None
+        self.high_score_image = pygame.image.load('img/icons/icon_high_score.png')
+        self.high_score_image = pygame.transform.scale(self.high_score_image,
+                                                       (int(self.width * 1.95), int(self.height * 1.7)))
+        self.high_score_rect = self.high_score_image.get_rect(
+            topleft=(self.x + int(self.width * -0.46), self.y + int(self.height * -0.32)))
+        self.high = False
+
+    def set_score(self, score, high):
+        self.text = fit_text_in_rect(str(score), self.font_small, self.text_color, self.text_rect)
+        self.high = high
+
+    def draw(self, screen):
+        screen.blit(self.image, (self.x, self.y))
+        if self.high:
+            screen.blit(self.high_score_image, self.high_score_rect)
+        if self.text:
+            draw_centered_text(screen, self.text, self.text_rect)
+
+
+class Passed(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)  # 0% height, 0% width, positioned at 90% of the parent width, 87% of the parent height
+        self.font_size = int(parent_rect.height * height_ratio)  # 16% of the stats_op height
+        self.font = ResizableFont('Arial Narrow.ttf', self.font_size)
+        self.text = self.font.font.render('Passed', True, (210, 180, 140))  # RGB white color
+
+    def draw(self, screen):
+        screen.blit(self.text, (self.x, self.y))
+
+
+class Weather(Component):
+    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)  # 54.9% of the parent width, 12.75% of the parent height, positioned at 27.9% of the parent width, 41.25% of the parent height
+        self.weather_images = []
+
+    def add_weather(self, weather_type):
+        weather_image = pygame.image.load(f'img/sm/weather_{weather_type}.jpg')
+        scaled_image = scale_surface(weather_image, (self.width, self.height))
+        self.weather_images.append(scaled_image)
+
+    def draw(self, screen):
+        total_images = len(self.weather_images)
+
+        if total_images == 0:
+            return  # nothing to draw
+
+        total_width = sum(image.get_width() for image in self.weather_images)
+        x_offset = (self.width - total_width) / 2
+
+        current_x = self.x + x_offset
+
+        for weather_image in self.weather_images:
+            image_width, image_height = weather_image.get_size()
+            image_y = self.y + (self.height - image_height) / 2
+            screen.blit(weather_image, (current_x, image_y))
+            current_x += image_width  # advance to the next image start position
+
+
 class ResizableFont:
     def __init__(self, path, size):
         self.path = path
@@ -217,114 +542,13 @@ class Game:
         self.running = True
         self.font_small = ResizableFont('Arial Narrow.ttf', 24)
 
-        # Calculate the width of panel-left
-        self.panel_left_width = int(self.width * 0.265)  # 26.5% of the window width
-        self.panel_left_height = self.height  # Full height
-        self.panel_left = pygame.Rect(0, 0, self.panel_left_width, self.panel_left_height)
-
         # Load the background image
         self.background_image = pygame.image.load('img/board.jpg')  # Replace with your image path
         self.background_image = pygame.transform.scale(self.background_image,
                                                        (self.width, self.height))  # Scale the image to fit the screen
 
-        # Leader box opponent
-
-        # Calculate the size and position of leader-box
-        self.leader_box_width = int(self.panel_left_width * 0.314)  # 31.4% of the panel width
-        self.leader_box_height = int(self.panel_left_height * 0.125)  # 12.5% of the panel height
-        self.leader_box_x = self.panel_left.x + self.panel_left_width * 0.275  # 27.5% from the left edge of the panel
-        self.leader_box_y = self.panel_left.y + self.panel_left_height * 0.0755  # 7.55% from the top of the panel
-        self.leader_box = pygame.Rect(self.leader_box_x, self.leader_box_y, self.leader_box_width,
-                                      self.leader_box_height)
-
-        self.leader_container_width = int(self.leader_box_width * 0.63)  # 63% of the leader_box width
-        self.leader_container_height = self.leader_box_height  # 100% of the leader_box height
-
-        # The leader_container is centered within the leader_box
-        self.leader_container_x = self.leader_box.x + (self.leader_box_width - self.leader_container_width) // 2
-        self.leader_container_y = self.leader_box.y + (self.leader_box_height - self.leader_container_height) // 2
-
-        self.leader_container = pygame.Rect(self.leader_container_x, self.leader_container_y,
-                                            self.leader_container_width, self.leader_container_height)
-
-        self.leader_active_width = int(self.leader_box_width * 0.24)  # 24% of the leader_box width
-        self.leader_active_height = int(self.leader_box_height * 0.28)  # 28% of the leader_box height
-
-        # The leader_active is positioned within the leader_box
-        self.leader_active_x = self.leader_box.x + int(self.leader_box_width * 0.75)
-        self.leader_active_y = self.leader_box.y + int(self.leader_box_height * 0.33)
-
-        self.leader_active = pygame.Rect(self.leader_active_x, self.leader_active_y, self.leader_active_width,
-                                         self.leader_active_height)
-
-        # Stats opponent
-
-        self.stats_op_width = int(self.panel_left_width * 0.89)  # 89% of the panel_left width
-        self.stats_op_height = int(self.panel_left_height * 0.125)  # 12.5% of the panel_left height
-
-        # The stats_op is positioned within the panel_left
-        self.stats_op_x = self.panel_left.x
-        self.stats_op_y = self.panel_left.y + int(self.panel_left_height * 0.2425)
-
-        self.stats_op = pygame.Rect(self.stats_op_x, self.stats_op_y, self.stats_op_width, self.stats_op_height)
-
-        self.profile_img_width = int(self.stats_op_width * 0.219)  # 21.9% of the stats_op width
-        self.profile_img_height = int(self.stats_op_height * 0.8)  # 80% of the stats_op height
-
-        # The profile_img is positioned within the stats_op
-        self.profile_img_x = self.stats_op.x + int(self.stats_op_width * 0.284)
-        self.profile_img_y = self.stats_op.y + int(self.stats_op_height * 0.096)
-
-        self.profile_img = pygame.Rect(self.profile_img_x, self.profile_img_y, self.profile_img_width,
-                                       self.profile_img_height)
-        self.profile_img_pic = pygame.image.load('img/icons/profile.png')
-        self.profile_img_pic = pygame.transform.scale(self.profile_img_pic,
-                                                      (self.profile_img_width, self.profile_img_height))
-
-        self.name_op_font_size = int(self.stats_op_height * 0.20)  # 20% of the stats_op height (as per CSS)
-        self.name_op_font = ResizableFont('Arial Narrow.ttf', self.name_op_font_size)
-        self.name_op_text = self.name_op_font.font.render('Opponent', True, (255, 255, 255))  # RGB white color
-        self.name_op_x = int(self.stats_op_width * 0.53)  # 53% of the stats_op width (as per CSS)
-        self.name_op_y = int(self.stats_op_height * 0.06)  # 6% of the stats_op height (as per CSS)
-
-        self.deck_name_op_text = self.font_small.font.render("Deck Name", True, (210, 180, 140))  # RGB for tan color
-        self.deck_name_op_x = int(self.stats_op_width * 0.53)  # 53% of the stats_op width
-        self.deck_name_op_y = int(self.stats_op_height * 0.25)  # 25% of the stats_op height
-
-        self.hand_count_op_left = self.stats_op_width * 0.5325  # 53.25% of panel's width
-        self.hand_count_op_top = self.stats_op_y + self.stats_op_height * 0.585  # 58.5% of stats's height + stats's y
-        self.hand_count_op_width = self.stats_op_width * 0.17  # 17% of panel's width
-        self.hand_count_op_height = self.stats_op_height * 0.295  # 29.5% of stats's height
-        self.hand_count_image = pygame.image.load('img/icons/icon_card_count.png')
-        self.hand_count_image = scale_surface(self.hand_count_image,
-                                              (self.hand_count_op_width, self.hand_count_op_height))
-
-        # Render the text for the hand count
-        self.hand_count_op_rec = pygame.Rect(self.hand_count_op_left, self.hand_count_op_top, self.hand_count_op_width,
-                                             self.hand_count_op_height)
-        self.hand_count_op_image_rect = self.hand_count_image.get_rect(
-            topleft=(self.hand_count_op_left, self.hand_count_op_top))
-
-        self.hand_count_op_text_rect = pygame.Rect(self.hand_count_op_left + self.hand_count_image.get_width(),
-                                                   self.hand_count_op_top,
-                                                   self.hand_count_op_width - self.hand_count_image.get_width(),
-                                                   self.hand_count_op_height)
-        self.hand_count_op_text = fit_text_in_rect("10", self.font_small, (218, 165, 32), self.hand_count_op_text_rect)
-
-        self.gem_on_image = pygame.image.load('img/icons/icon_gem_on.png')  # Change this path to your actual file
-
-        self.gem1_op_left = self.stats_op_width * 0.8  # 80% of stats_op's width
-        self.gem1_op_top = self.stats_op_y + self.stats_op_height * 0.56  # 56% of stats_op's height + stats_op's top
-        self.gem1_op_width = self.panel_left_width * 0.09  # 9% of panel_left's width
-        self.gem1_op_height = self.stats_op_height * 0.31  # 31% of stats_op's height
-
-        # Scale the image to fit the rectangle
-        self.gem_on_image = pygame.transform.scale(self.gem_on_image, (self.gem1_op_width, self.gem1_op_height))
-
-        self.gem2_op_left = self.stats_op_width * 0.7075  # 70.75% of stats_op's width
-        self.gem2_op_top = self.stats_op_y + self.stats_op_height * 0.5625  # 56.25% of stats_op's height + stats_op's top
-        self.gem2_op_width = self.panel_left_width * 0.09  # 9% of panel_left's width
-        self.gem2_op_height = self.stats_op_height * 0.31  # 31% of stats_op's height
+        # Create the panel
+        self.panel_left = Panel(self.screen.get_rect(), 0.265, 1)
 
     def run(self):
         while self.running:
@@ -332,7 +556,6 @@ class Game:
             self.handle_events()
             self.update()
             self.draw()
-
         pygame.quit()
 
     def handle_events(self):
@@ -349,35 +572,7 @@ class Game:
 
     def draw(self):
         self.screen.blit(self.background_image, (0, 0))
-
-        # pygame.draw.rect(self.screen, (255, 0, 0), self.panel_left)  # Draw the left panel
-        # pygame.draw.rect(self.screen, (0, 255, 0), self.game_object.green_rect)  # Draw the green rectangle
-        # pygame.draw.rect(self.screen, (255, 0, 0), self.game_object.red_rect)  # Draw the red rectangle
-        # pygame.draw.rect(self.screen, (255, 255, 0), self.leader_box)  # Draw the leader box
-        # pygame.draw.rect(self.screen, (0, 0, 255), self.leader_container)  # Draw the leader container
-        # pygame.draw.rect(self.screen, (255, 255, 255), self.leader_active)  # Draw the leader active
-        # pygame.draw.rect(self.screen, (0, 0, 255), self.stats_op)  # Draw the stats_op
-        # pygame.draw.rect(self.screen, (0, 255, 255), self.profile_img)  # Draw the profile_img
-        # pygame.draw.rect(self.screen, (255, 255, 255), self.hand_count_op_rec)  # Draw the hand count_op rectangle
-        # pygame.draw.rect(self.screen, (0, 0, 0), self.hand_count_op_image_rect)
-        # pygame.draw.rect(self.screen, (255, 0, 255), self.hand_count_op_text_rect)
-        surface = pygame.Surface((self.stats_op.width, self.stats_op.height))
-        surface.fill((20, 20, 20))
-        surface.set_alpha(128)
-        self.screen.blit(surface, (self.stats_op.left, self.stats_op.top))
-
-        self.screen.blit(self.hand_count_image, self.hand_count_op_image_rect)
-
-        self.screen.blit(self.profile_img_pic, (self.profile_img.x, self.profile_img.y))
-        self.screen.blit(self.name_op_text, (self.stats_op.x + self.name_op_x, self.stats_op.y + self.name_op_y))
-        self.screen.blit(self.deck_name_op_text,
-                         (self.stats_op.x + self.deck_name_op_x,
-                          self.stats_op.y + self.deck_name_op_y))  # Draw the deck name
-
-        draw_centered_text(self.screen, self.hand_count_op_text, self.hand_count_op_text_rect)
-
-        self.screen.blit(self.gem_on_image, (self.gem1_op_left, self.gem1_op_top))  # Draw the gem1_op
-        self.screen.blit(self.gem_on_image, (self.gem2_op_left, self.gem2_op_top))  # Draw the gem2_op
+        self.panel_left.draw(self.screen)
 
         self.game_object.draw(self.screen)
         pygame.display.flip()
