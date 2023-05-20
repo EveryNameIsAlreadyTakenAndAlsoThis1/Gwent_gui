@@ -54,9 +54,6 @@ class Card:
 
         # Create the image attribute by adding smaller images to the small image
         self.image = self.small_image.copy()
-
-        # Create the font for the strength text
-        strength_font = ResizableFont('Arial Narrow.ttf', 10)  # start with a small size
         self.strength_text = None
 
         # Add the appropriate icon to the top left corner of the image
