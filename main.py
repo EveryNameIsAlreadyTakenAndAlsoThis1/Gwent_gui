@@ -47,6 +47,7 @@ class Card:
         self.count = self.data['Count']
         self.faction = self.data['Faction']
         self.image = self.data['Image']
+        self.hovering = False
 
         # Initialize the large and small images
         self.large_image = pygame.image.load(f'img/lg/{self.image}')
@@ -54,6 +55,7 @@ class Card:
 
         # Create the image attribute by adding smaller images to the small image
         self.image = self.small_image.copy()
+        self.image_scaled = None
         self.strength_text = None
 
         # Add the appropriate icon to the top left corner of the image
@@ -64,7 +66,7 @@ class Card:
             type_icon = pygame.image.load('img/icons/power_normal3.png')
         elif self.type == "Weather":
             weather_icons = ['img/icons/power_frost.png', 'img/icons/power_fog.png', 'img/icons/power_rain.png',
-                             'img/icons/power_clear.png']
+                             '', 'img/icons/power_clear.png']
             type_icon = pygame.image.load(weather_icons[self.placement])
         elif self.type == "Decoy":
             type_icon = pygame.image.load('img/icons/power_decoy.png')
@@ -208,6 +210,7 @@ class PanelLeft(Component):
         self.weather = Weather(self, 0.549, 0.1275, 0.279, 0.416)
         self.weather.add_weather('rain')
         self.weather.add_weather('frost')
+        self.weather.add_weather('fog')
 
         self.setup_leader_stats(0.0755, 0.2425, True)
         self.setup_leader_stats(0.7755, 0.6175, False)
@@ -291,8 +294,8 @@ class FieldRow(Component):
 class RowSpecial(Component):
     def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
-        self.special_img = pygame.image.load('img/sm/special_horn.jpg')
-        self.special_img = scale_surface(self.special_img, (self.width, self.height * 0.9))
+        self.card = Card(58, data)
+        self.special_img = scale_surface(self.card.image, (self.width, self.height * 0.9))
         self.active = True
 
     def activate_special(self):
@@ -308,6 +311,22 @@ class RowSpecial(Component):
             img_y = self.y + (self.height - img_height) // 2  # Calculate the centered y-coordinate
             screen.blit(self.special_img, (img_x, img_y))
 
+            # Get the mouse cursor position
+            mouse_pos = pygame.mouse.get_pos()
+            self.card.hovering = False
+            card_rect = pygame.Rect(img_x, img_y, img_width, img_height)
+            if card_rect.collidepoint(mouse_pos):
+                self.card.hovering = True
+        if self.card.hovering:
+            hovering_image = self.card.image.copy()
+            hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
+            screen.blit(hovering_image, (img_x, img_y))
+            card_preview = CardPreview(screen.get_rect(), self.card)
+            card_preview.draw(screen)
+            if self.card.ability != '0':
+                card_description = CardDescription(screen.get_rect(), self.card)
+                card_description.draw(screen)
+
 
 class RowCards(Component):
     def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
@@ -318,6 +337,106 @@ class RowCards(Component):
     def draw(self, screen):
         self.card_container.draw(screen)
         # self.card_container.render(screen)
+
+
+class CardPreview(Component):
+    def __init__(self, parent_rect, card):
+        """
+        Initializes the CardPreview.
+
+        Parameters:
+        -----------
+        parent_rect : pygame.Rect
+            The Rect of the parent component.
+        card : Card
+            The Card object to be previewed.
+        """
+        super().__init__(parent_rect, 0.16, 0.55, 0.805, 0.205)
+        self.card = card
+
+    def draw(self, screen):
+        """
+        Draws the preview of the card on the screen.
+
+        Parameters:
+        -----------
+        screen : pygame.Surface
+            The surface on which the preview is to be drawn.
+        """
+        # Scale the large image of the card to fit within the preview area
+        preview_image = scale_surface(self.card.large_image, (self.width, self.height))
+
+        # Draw the preview
+        screen.blit(preview_image, (self.x, self.y))
+
+
+class CardDescription(Component):
+    def __init__(self, parent_rect, card):
+        """
+        Initializes the CardDescription.
+
+        Parameters:
+        -----------
+        parent_rect : pygame.Rect
+            The Rect of the parent component.
+        card : Card
+            The Card object to be described.
+        """
+        super().__init__(parent_rect, 29.12 / 100, 0.15, 67.95 / 100, 0.76)
+        self.card = card
+
+        self.image_text = self.card.ability.lower()
+        if not self.card.type == 'Unit' and self.card.ability == 'Morale':
+            self.image_text = 'horn'
+        if self.card.ability == 'Weather':
+            if self.card.placement == 0:
+                self.image_text = 'frost'
+            elif self.card.placement == 1:
+                self.image_text = 'fog'
+            elif self.card.placement == 2:
+                self.image_text = 'rain'
+            elif self.card.placement == 4:
+                self.image_text = 'clear'
+
+        # Load the ability icon and scale it down
+        self.ability_icon = pygame.image.load(f'img/icons/card_ability_{self.image_text}.png')
+        self.ability_icon = scale_surface(self.ability_icon,
+                                          (self.width // 8, self.height // 4))  # adjust as necessary
+
+        # Initialize fonts
+        self.name_font = pygame.font.Font('Arial Narrow.ttf', 48)  # adjust size as necessary
+        self.desc_font = pygame.font.Font('Arial Narrow.ttf', 24)  # adjust size as necessary
+
+    def draw(self, screen):
+        """
+        Draws the description of the card on the screen.
+
+        Parameters:
+        -----------
+        screen : pygame.Surface
+            The surface on which the description is to be drawn.
+        """
+        # Draw the background
+        background = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        background.fill((20, 20, 20, 250))  # adjust color and transparency as necessary
+        screen.blit(background, (self.x, self.y))
+
+        # Draw the ability icon
+        screen.blit(self.ability_icon, (self.x, self.y))  # adjust position as necessary
+
+        # Draw the name of the ability
+        name_surface = self.name_font.render(self.card.ability, True, (255, 255, 255))  # adjust color as necessary
+        name_rect = name_surface.get_rect(
+            center=(self.x + self.width // 2, self.y + self.height // 4))  # adjust position as necessary
+        screen.blit(name_surface, name_rect)
+
+        # Draw the description of the ability
+        # Use a placeholder text here. Replace it with the actual description.
+        description = "This is a placeholder description for the ability."
+        desc_surface = self.desc_font.render(description, True, (255, 255, 255))  # adjust color as necessary
+        desc_rect = desc_surface.get_rect(
+            center=(self.x + self.width // 2, self.y + self.height // 2))  # adjust position as necessary
+        screen.blit(desc_surface, desc_rect)
 
 
 class CardContainer(Component):
@@ -342,10 +461,10 @@ class CardContainer(Component):
     def draw(self, screen):
         # First, we scale down the card images to fit within the container
         for card in self.cards:
-            card.image = scale_surface(card.image, (self.width, self.height))
+            card.image_scaled = scale_surface(card.image, (self.width, self.height * 0.95))
 
         # Calculate the total width of the cards
-        total_card_width = len(self.cards) * self.cards[0].image.get_width()
+        total_card_width = len(self.cards) * self.cards[0].image_scaled.get_width()
         overlap = 0
         if total_card_width > self.width:
             # If cards don't fit side by side, calculate the necessary overlap
@@ -355,13 +474,27 @@ class CardContainer(Component):
         start_x = self.x + (self.width - total_card_width + overlap * (len(self.cards) - 1)) / 2
 
         # Calculate the y position to center the cards vertically
-        card_height = self.cards[0].image.get_height()
-        start_y = self.y + (self.height - card_height) / 2
+        card_height = self.cards[0].image_scaled.get_height()
+        start_y = self.y + (self.height * 0.95 - card_height) / 2
+
+        # Get the mouse cursor position
+        mouse_pos = pygame.mouse.get_pos()
+
+        for i, card in enumerate(self.cards):
+            card_x = start_x + i * (card.image_scaled.get_width() - overlap)
+            card_rect = pygame.Rect(card_x, start_y, card.image_scaled.get_width(), card.image_scaled.get_height())
+            # Check if the mouse is over the card
+            card.hovering = False
+            if card_rect.collidepoint(mouse_pos):
+                card.hovering = True
+                for j, card_2 in enumerate(self.cards):
+                    if card is not card_2:
+                        card_2.hovering = False
 
         # Draw each card
         for i, card in enumerate(self.cards):
-            card_x = start_x + i * (card.image.get_width() - overlap)
-            screen.blit(card.image, (card_x, start_y))
+            card_x = start_x + i * (card.image_scaled.get_width() - overlap)
+            screen.blit(card.image_scaled, (card_x, start_y))
             if card.strength_text is not None:
                 font_small = ResizableFont('Arial Narrow.ttf', 20)
                 if card.type == 'Hero':
@@ -372,51 +505,94 @@ class CardContainer(Component):
                     text_color = (0, 255, 0)
                 elif card.type == 'Unit' and card.strength > card.strength_text:
                     text_color = (255, 0, 0)
-                text_rect = pygame.Rect(card_x, start_y, card.image.get_width() / 2.7, card.image.get_height() / 4)
+                text_rect = pygame.Rect(card_x, start_y, card.image_scaled.get_width() / 2.7,
+                                        card.image_scaled.get_height() / 4)
                 text = font_small.font.render(str(card.strength_text), True, text_color)
                 draw_centered_text(screen, text, text_rect)
+
+        # Draw hovered card
+        for i, card in enumerate(self.cards):
+            if card.hovering:
+                hovering_image = card.image.copy()
+                hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
+                card_x = start_x + i * (card.image_scaled.get_width() - overlap)
+                screen.blit(hovering_image, (card_x, start_y))
+                card_preview = CardPreview(screen.get_rect(), card)
+                card_preview.draw(screen)
+                if card.strength_text is not None:
+                    font_small = ResizableFont('Arial Narrow.ttf', 20)
+                    if card.type == 'Hero':
+                        text_color = (255, 255, 255)
+                    elif card.type == 'Unit' and card.strength == card.strength_text:
+                        text_color = (0, 0, 0)
+                    elif card.type == 'Unit' and card.strength < card.strength_text:
+                        text_color = (0, 255, 0)
+                    elif card.type == 'Unit' and card.strength > card.strength_text:
+                        text_color = (255, 0, 0)
+                    text_rect = pygame.Rect(card_x, start_y, hovering_image.get_width() / 2.7,
+                                            hovering_image.get_height() / 4)
+                    text = font_small.font.render(str(card.strength_text), True, text_color)
+                    draw_centered_text(screen, text, text_rect)
+                if card.ability != '0':
+                    card_description = CardDescription(screen.get_rect(), card)
+                    card_description.draw(screen)
 
 
 class Field(Component):
     def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent, is_hand):
         super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.is_hand = is_hand
+        self.field_list = []
         if is_hand:
             self.card_container = CardContainer(self, 1, 1, 0, 0)
+            self.field_list.append(self.card_container)
         else:
             if is_opponent:
                 self.field_row_siege = FieldRow(self, 1, 0.32, 0, 0.021)
                 self.field_row_ranged = FieldRow(self, 1, 0.32, 0, 0.335)
                 self.field_row_melee = FieldRow(self, 1, 0.32, 0, 0.67)
+                self.field_list.append(self.field_row_melee)
+                self.field_list.append(self.field_row_ranged)
+                self.field_list.append(self.field_row_siege)
             else:
                 self.field_row_melee = FieldRow(self, 1, 0.32, 0, 0.021)
                 self.field_row_ranged = FieldRow(self, 1, 0.32, 0, 0.335)
                 self.field_row_siege = FieldRow(self, 1, 0.32, 0, 0.67)
+                self.field_list.append(self.field_row_melee)
+                self.field_list.append(self.field_row_ranged)
+                self.field_list.append(self.field_row_siege)
 
     def draw(self, screen):
-        if self.is_hand:
-            self.card_container.draw(screen)
-            # self.card_container.render(screen)
-        else:
-            self.field_row_siege.draw(screen)
-            # self.field_row_siege.render(screen)
-            self.field_row_ranged.draw(screen)
-            # self.field_row_ranged.render(screen)
-            self.field_row_melee.draw(screen)
-            # self.field_row_melee.render(screen)
+        # Get the mouse cursor position
+        mouse_pos = pygame.mouse.get_pos()
+        for field in self.field_list:
+            if not field.rect.collidepoint(mouse_pos):
+                field.draw(screen)
+        for field in self.field_list:
+            if field.rect.collidepoint(mouse_pos):
+                field.draw(screen)
 
 
 class PanelMiddle(Component):
     def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.field_list = []
         self.field_op = Field(self, 1, 0.385, 0, 0, True, False)
         self.field_me = Field(self, 1, 0.385, 0, 0.388, False, False)
         self.field_hand = Field(self, 0.938, 0.13, 0.062, 0.775, False, True)
+        self.field_list.append(self.field_op)
+        self.field_list.append(self.field_me)
+        self.field_list.append(self.field_hand)
 
     def draw(self, screen):
-        self.field_op.draw(screen)
-        self.field_me.draw(screen)
-        self.field_hand.draw(screen)
+        # Get the mouse cursor position
+        mouse_pos = pygame.mouse.get_pos()
+        for field in self.field_list:
+            if not field.rect.collidepoint(mouse_pos):
+                field.draw(screen)
+        for field in self.field_list:
+            if field.rect.collidepoint(mouse_pos):
+                field.draw(screen)
 
 
 class PanelRight(Component):
@@ -453,6 +629,8 @@ class PanelGame(Component):
             The rectangle representing the area of the parent screen.
         """
 
+        self.panel_list = []
+
         # Initialize the left panel
         width_ratio = 0.265  # takes up 26.5% of the parent's width
         height_ratio = 1
@@ -469,6 +647,9 @@ class PanelGame(Component):
         width_ratio = 0.21  # takes up 21% of the parent's width
         x_ratio = 0.79  # starts at 79% of the width of the parent
         self.panel_right = PanelRight(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.panel_list.append(self.panel_left)
+        self.panel_list.append(self.panel_middle)
+        self.panel_list.append(self.panel_right)
 
     def draw(self, screen):
         """
@@ -479,9 +660,14 @@ class PanelGame(Component):
         screen : pygame.Surface
             The surface onto which the panels should be drawn.
         """
-        self.panel_left.draw(screen)
-        self.panel_middle.draw(screen)
-        self.panel_right.draw(screen)
+        # Get the mouse cursor position
+        mouse_pos = pygame.mouse.get_pos()
+        for field in self.panel_list:
+            if not field.rect.collidepoint(mouse_pos):
+                field.draw(screen)
+        for field in self.panel_list:
+            if field.rect.collidepoint(mouse_pos):
+                field.draw(screen)
 
 
 class LeaderBox(Component):
@@ -1322,7 +1508,11 @@ class Weather(Component):
         """
         super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)  # 54.9% of the parent width, 12.75% of the parent height, positioned at 27.9% of the parent width, 41.25% of the parent height
-        self.weather_images = []
+        self.cards = []
+        self.frost = Card(60, data)
+        self.fog = Card(61, data)
+        self.rain = Card(62, data)
+        self.clear = Card(63, data)
 
     def add_weather(self, weather_type):
         """
@@ -1333,9 +1523,12 @@ class Weather(Component):
         weather_type : str
             The type of weather to be added.
         """
-        weather_image = pygame.image.load(f'img/sm/weather_{weather_type}.jpg')
-        scaled_image = scale_surface(weather_image, (self.width, self.height))
-        self.weather_images.append(scaled_image)
+        if weather_type == 'frost':
+            self.cards.append(self.frost)
+        elif weather_type == 'fog':
+            self.cards.append(self.fog)
+        elif weather_type == 'rain':
+            self.cards.append(self.rain)
 
     def draw(self, screen):
         """
@@ -1348,21 +1541,54 @@ class Weather(Component):
         screen : pygame.Surface
             The screen onto which the weather images should be drawn.
         """
-        total_images = len(self.weather_images)
+        # First, we scale down the card images to fit within the container
+        for card in self.cards:
+            card.image_scaled = scale_surface(card.image, (self.width, self.height))
 
-        if total_images == 0:
-            return  # nothing to draw
+        # Calculate the total width of the cards
+        total_card_width = len(self.cards) * self.cards[0].image_scaled.get_width()
+        overlap = 0
+        if total_card_width > self.width:
+            # If cards don't fit side by side, calculate the necessary overlap
+            overlap = (total_card_width - self.width) / (len(self.cards) - 1)
 
-        total_width = sum(image.get_width() for image in self.weather_images)
-        x_offset = (self.width - total_width) / 2
+        # Calculate the starting x position for the cards to center them
+        start_x = self.x + (self.width - total_card_width + overlap * (len(self.cards) - 1)) / 2
 
-        current_x = self.x + x_offset
+        # Calculate the y position to center the cards vertically
+        card_height = self.cards[0].image_scaled.get_height()
+        start_y = self.y + (self.height - card_height) / 2
 
-        for weather_image in self.weather_images:
-            image_width, image_height = weather_image.get_size()
-            image_y = self.y + (self.height - image_height) / 2
-            screen.blit(weather_image, (current_x, image_y))
-            current_x += image_width  # advance to the next image start position
+        # Get the mouse cursor position
+        mouse_pos = pygame.mouse.get_pos()
+
+        for i, card in enumerate(self.cards):
+            card_x = start_x + i * (card.image_scaled.get_width() - overlap)
+            card_rect = pygame.Rect(card_x, start_y, card.image_scaled.get_width(), card.image_scaled.get_height())
+            # Check if the mouse is over the card
+            card.hovering = False
+            if card_rect.collidepoint(mouse_pos):
+                card.hovering = True
+                for j, card_2 in enumerate(self.cards):
+                    if card is not card_2:
+                        card_2.hovering = False
+
+        for i, card in enumerate(self.cards):
+            card_x = start_x + i * (card.image_scaled.get_width() - overlap)
+            screen.blit(card.image_scaled, (card_x, start_y))
+
+        # Draw hovered card
+        for i, card in enumerate(self.cards):
+            if card.hovering:
+                hovering_image = card.image.copy()
+                hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
+                card_x = start_x + i * (card.image_scaled.get_width() - overlap)
+                screen.blit(hovering_image, (card_x, start_y))
+                card_preview = CardPreview(screen.get_rect(), card)
+                card_preview.draw(screen)
+                if card.ability != '0':
+                    card_description = CardDescription(screen.get_rect(), card)
+                    card_description.draw(screen)
 
 
 class ResizableFont:
@@ -1585,7 +1811,7 @@ class GameObject:
             DraggableImage(self.green_rect.x + self.image_width * (i % num_images),
                            self.green_rect.y + self.image_height * (i // num_images), 'decoy.png', self.screen_width,
                            self.screen_height)
-            for i in range(15)  # Change the range to the number of images you have
+            for i in range(0)  # Change the range to the number of images you have
         ]
         self.dragged_image = None
 
