@@ -2,6 +2,38 @@ import pygame
 
 
 def load_file(file_path):
+    """
+    Loads card data from a CSV file into a dictionary.
+
+    This function reads a CSV file where each line represents a card, and converts this data into
+    a dictionary where the key is the card's ID and the value is another dictionary with the card's attributes.
+
+    Parameters:
+    -----------
+    file_path : str
+        The path to the CSV file to be read.
+
+    Returns:
+    --------
+    dict
+        A dictionary where the key is the card's ID (as an integer), and the value is a dictionary with the following structure:
+        {
+            'Name': str,        # The name of the card.
+            'Id': int,          # The ID of the card.
+            'Strength': int,    # The strength value of the card.
+            'Ability': str,     # The ability of the card.
+            'Type': str,        # The type of the card.
+            'Placement': int,   # The placement of the card.
+            'Count': int,       # The count of the card.
+            'Faction': str,     # The faction of the card.
+            'Image': str        # The image file name of the card.
+        }
+
+    Notes:
+    ------
+    This function assumes that the CSV file is formatted correctly, with each line containing the card attributes
+    in the order specified in the returned dictionary. The function skips empty lines and lines that contain certain keywords.
+    """
     with open(file_path, 'r') as f:
         data = f.read().splitlines()
 
@@ -32,11 +64,158 @@ def load_file(file_path):
     return result
 
 
+def scale_surface(surface, target_size):
+    """
+    Scales a Pygame surface proportionally to fit into the target size.
+
+    Parameters
+    ----------
+    surface : pygame.Surface
+        The surface to be scaled.
+    target_size : tuple of int
+        The target size (width, height).
+
+    Returns
+    -------
+    pygame.Surface
+        The scaled surface.
+    """
+    target_width, target_height = target_size
+    width, height = surface.get_size()
+    scale_factor = min(target_width / width, target_height / height)
+    new_size = (round(width * scale_factor), round(height * scale_factor))
+    return pygame.transform.smoothscale(surface, new_size)
+
+
+def fit_text_in_rect(text, font, color, rect):
+    """
+    Adjusts the font size to fit the text into the rectangle.
+
+    Parameters
+    ----------
+    text : str
+        The text to be rendered.
+    font : ResizableFont
+        The font used to render the text.
+    color : tuple of int
+        The RGB color for the text.
+    rect : pygame.Rect
+        The rectangle within which the text should fit.
+
+    Returns
+    -------
+    pygame.Surface
+        The rendered text.
+    """
+    size = 1  # Start with a small font size
+    font.resize(size)  # Use the same font but with a new size
+    new_text = font.font.render(text, True, color)
+
+    # Increase the size until the text no longer fits within the rectangle
+    while new_text.get_width() <= rect.width and new_text.get_height() <= rect.height:
+        size += 1
+        font.resize(size)
+        new_text = font.font.render(text, True, color)
+
+    # If size was incremented past the point where text fits, reduce size by 1
+    if new_text.get_width() > rect.width or new_text.get_height() > rect.height:
+        size -= 1
+        font.resize(size)
+        new_text = font.font.render(text, True, color)
+
+    return new_text
+
+
+def draw_centered_text(screen, text, rect):
+    """
+    Draws the given text centered in the given rectangle.
+
+    Parameters
+    ----------
+    screen : pygame.Surface
+        The screen onto which the text should be drawn.
+    text : pygame.Surface
+        The text to be drawn.
+    rect : pygame.Rect
+        The rectangle within which the text should be centered.
+    """
+    # Get the width and height of the text
+    text_width, text_height = text.get_size()
+
+    # Calculate the position to center the text
+    pos_x = rect.x + (rect.width - text_width) // 2
+    pos_y = rect.y + (rect.height - text_height) // 2
+
+    # Draw the text on the screen at the calculated position
+    screen.blit(text, (pos_x, pos_y))
+
+
 data = load_file('Gwent.csv')
 
 
 class Card:
+    """
+    A class that represents a Card in the game.
+
+    This class is responsible for loading and storing all relevant attributes of a card,
+    including its name, strength, ability, type, placement, count, faction, and image.
+    It also provides functionality to render the card image, including small icons
+    indicating its type and placement on the game field.
+
+    Attributes:
+    ----------
+    _id : int
+        The unique identifier of the card.
+    data : dict
+        A dictionary containing all information about the card.
+    name : str
+        The name of the card.
+    strength : int
+        The strength value of the card.
+    ability : str
+        The ability of the card.
+    type : str
+        The type of the card, can be "Hero", "Unit", "Weather", "Decoy", "Morale", or "Scorch".
+    placement : int
+        The placement of the card, a value between 0 and 4.
+    count : int
+        The count of the card, indicating how many of this card exist.
+    faction : str
+        The faction the card belongs to.
+    image : str
+        The filename of the card's image.
+    hovering : bool
+        A flag indicating whether the mouse cursor is hovering over the card.
+    large_image : pygame.Surface
+        The large version of the card's image, loaded from the corresponding file.
+    small_image : pygame.Surface
+        The small version of the card's image, loaded from the corresponding file.
+    image_scaled : pygame.Surface
+        The card's image scaled according to the card's current state.
+    strength_text : str or None
+        The strength of the card as text, or None if the card is not a "Hero" or "Unit".
+
+    Methods:
+    --------
+    __init__(self, _id, data):
+        Initializes the Card object with the given ID and data dictionary.
+    """
+
     def __init__(self, _id, data):
+        """
+        Initializes the Card object with the given ID and data dictionary.
+
+        The Card data dictionary includes its name, strength, ability, type, placement, count,
+        faction, and image. The large and small versions of the card's image are loaded and
+        additional icons (type, placement, and ability) are added to the small image.
+
+        Parameters:
+        -----------
+        _id : int
+            The unique identifier of the card.
+        data : dict
+            A dictionary containing all information about the card.
+        """
         self._id = _id
         self.data = data[_id]
         self.name = self.data['Name']
@@ -259,7 +438,53 @@ class PanelLeft(Component):
 
 
 class RowScore(Component):
+    """
+    A class that represents a Score for a particular Row in a Pygame display.
+
+    This class is a subclass of the Component class. It handles the displaying of
+    scores in a specific area of the game interface, represented by a Pygame Rect.
+
+    Attributes:
+    ----------
+    font_small : ResizableFont
+        The ResizableFont used for rendering the score.
+    text_color : tuple
+        A tuple representing the color of the score text in RGB format.
+    text_rect : pygame.Rect
+        The Rect where the score will be rendered.
+    text : str
+        The text to be displayed, representing the score.
+
+    Methods:
+    --------
+    __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        Initializes the RowScore object with the given ratios relative to the parent Rect.
+    set_score(self, score)
+        Sets the score to be displayed.
+    draw(self, screen)
+        Draws the score text onto the provided screen.
+    """
+
     def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        """
+        Initializes the RowScore object with the given ratios relative to the parent Rect.
+
+        The position and dimensions of the RowScore are determined by the ratios and the parent Rect.
+        The score text is initialized as None.
+
+        Parameters:
+        -----------
+        parent_rect : pygame.Rect
+            The Rect of the parent component.
+        width_ratio : float
+            The ratio of the RowScore's width to its parent's width.
+        height_ratio : float
+            The ratio of the RowScore's height to its parent's height.
+        x_ratio : float
+            The ratio of the RowScore's x-coordinate to its parent's width.
+        y_ratio : float
+            The ratio of the RowScore's y-coordinate to its parent's height.
+        """
         super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.font_small = ResizableFont('Arial Narrow.ttf', 24)
         self.text_color = (0, 0, 0)
@@ -267,15 +492,78 @@ class RowScore(Component):
         self.text = None
 
     def set_score(self, score):
+        """
+        Sets the score to be displayed.
+
+        The score is converted to a string and fitted into the text Rect.
+        The font and color used are determined by the ResizableFont and text_color attributes.
+
+        Parameters:
+        -----------
+        score : int
+            The score to be displayed.
+        """
         self.text = fit_text_in_rect(str(score), self.font_small, self.text_color, self.text_rect)
 
     def draw(self, screen):
+        """
+        Draws the score text onto the provided screen.
+
+        If the score text has been set, it is drawn centered in its text Rect.
+
+        Parameters:
+        -----------
+        screen : pygame.Surface
+            The Surface onto which the score text will be drawn.
+        """
         if self.text:
             draw_centered_text(screen, self.text, self.text_rect)
 
 
 class FieldRow(Component):
+    """
+    A class that represents a Field Row in a Pygame display.
+
+    This class is a subclass of the Component class. It handles the rendering of a
+    field row in the game interface, including the score for the row, any special
+    conditions applying to the row, and the cards placed in the row.
+
+    Attributes:
+    ----------
+    row_score : RowScore
+        The RowScore object for this field row, representing the total score of cards in the row.
+    row_special : RowSpecial
+        The RowSpecial object for this field row, representing any special conditions that apply.
+    row_cards : RowCards
+        The RowCards object for this field row, representing the cards placed in the row.
+
+    Methods:
+    --------
+    __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        Initializes the FieldRow object with the given ratios relative to the parent Rect.
+    draw(self, screen)
+        Draws the row's score, special condition, and cards onto the provided screen.
+    """
+
     def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        """
+        Initializes the FieldRow object with the given ratios relative to the parent Rect.
+
+        Also creates a RowScore, a RowSpecial, and a RowCards for this field row.
+
+        Parameters:
+        -----------
+        parent_rect : pygame.Rect
+            The Rect of the parent component.
+        width_ratio : float
+            The ratio of the FieldRow's width to its parent's width.
+        height_ratio : float
+            The ratio of the FieldRow's height to its parent's height.
+        x_ratio : float
+            The ratio of the FieldRow's x-coordinate to its parent's width.
+        y_ratio : float
+            The ratio of the FieldRow's y-coordinate to its parent's height.
+        """
         super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.row_score = RowScore(self, 0.051, 0.4, 0.002, 0.31)
         self.row_score.set_score(10)
@@ -283,6 +571,17 @@ class FieldRow(Component):
         self.row_cards = RowCards(self, 0.797, 1, 0.2, 0)
 
     def draw(self, screen):
+        """
+        Draws the row's score, special condition, and cards onto the provided screen.
+
+        This is accomplished by calling the draw methods of the RowScore, RowSpecial,
+        and RowCards objects associated with this FieldRow.
+
+        Parameters:
+        -----------
+        screen : pygame.Surface
+            The Surface onto which the components will be drawn.
+        """
         self.row_score.draw(screen)
         # self.row_score.render(screen)
         self.row_special.draw(screen)
@@ -292,19 +591,65 @@ class FieldRow(Component):
 
 
 class RowSpecial(Component):
+    """
+    A class that represents a special row in a Pygame display.
+
+    This class is a subclass of the Component class. It handles the rendering of a
+    special row in the game interface, including the display of a special card and
+    its effects.
+
+    Attributes:
+    ----------
+    card : Card
+        The special Card object for this row.
+    special_img : pygame.Surface
+        The image of the special card, scaled to the appropriate size.
+    active : bool
+        A flag indicating whether the special row is active.
+
+    Methods:
+    --------
+    __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        Initializes the RowSpecial object with the given ratios relative to the parent Rect.
+    draw(self, screen)
+        Draws the special card onto the provided screen if the row is active.
+    """
+
     def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        """
+        Initializes the RowSpecial object with the given ratios relative to the parent Rect.
+
+        Also creates a Card and its image for this special row.
+
+        Parameters:
+        -----------
+        parent_rect : pygame.Rect
+            The Rect of the parent component.
+        width_ratio : float
+            The ratio of the RowSpecial's width to its parent's width.
+        height_ratio : float
+            The ratio of the RowSpecial's height to its parent's height.
+        x_ratio : float
+            The ratio of the RowSpecial's x-coordinate to its parent's width.
+        y_ratio : float
+            The ratio of the RowSpecial's y-coordinate to its parent's height.
+        """
         super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.card = Card(58, data)
         self.special_img = scale_surface(self.card.image, (self.width, self.height * 0.9))
         self.active = True
 
-    def activate_special(self):
-        self.active = True
-
-    def deactivate_special(self):
-        self.active = False
-
     def draw(self, screen):
+        """
+        Draws the special card onto the provided screen if the row is active.
+
+        If the card is hovering, it also draws a preview of the card and its description.
+
+        Parameters:
+        -----------
+        screen : pygame.Surface
+            The Surface onto which the components will be drawn.
+        """
         if self.active:
             img_width, img_height = self.special_img.get_size()
             img_x = self.x + (self.width - img_width) // 2  # Calculate the centered x-coordinate
@@ -329,17 +674,81 @@ class RowSpecial(Component):
 
 
 class RowCards(Component):
+    """
+    A class that represents a row of cards in a Pygame display.
+
+    This class is a subclass of the Component class. It manages and renders
+    a container of Card objects on the game interface.
+
+    Attributes:
+    ----------
+    card_container : CardContainer
+        The CardContainer object for this row.
+
+    Methods:
+    --------
+    __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        Initializes the RowCards object with the given ratios relative to the parent Rect.
+    draw(self, screen)
+        Draws the card container onto the provided screen.
+    """
+
     def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        """
+        Initializes the RowCards object with the given ratios relative to the parent Rect.
+
+        Also creates a CardContainer for this row.
+
+        Parameters:
+        ----------
+        parent_rect : pygame.Rect
+            The Rect of the parent component.
+        width_ratio : float
+            The ratio of the RowCards's width to its parent's width.
+        height_ratio : float
+            The ratio of the RowCards's height to its parent's height.
+        x_ratio : float
+            The ratio of the RowCards's x-coordinate to its parent's width.
+        y_ratio : float
+            The ratio of the RowCards's y-coordinate to its parent's height.
+        """
         super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
 
         self.card_container = CardContainer(self, 1, 1, 0, 0)
 
     def draw(self, screen):
+        """
+        Draws the card container onto the provided screen.
+
+        Parameters:
+        ----------
+        screen : pygame.Surface
+            The Surface onto which the components will be drawn.
+        """
         self.card_container.draw(screen)
         # self.card_container.render(screen)
 
 
 class CardPreview(Component):
+    """
+    A class to create a preview of a Card object in a Pygame display.
+
+    This class is a subclass of the Component class. It manages and renders
+    a preview of a specific Card object on the game interface.
+
+    Attributes:
+    ----------
+    card : Card
+        The Card object to be previewed.
+
+    Methods:
+    --------
+    __init__(self, parent_rect, card)
+        Initializes the CardPreview object with the given card and parent Rect.
+    draw(self, screen)
+        Draws the preview of the card onto the provided screen.
+    """
+
     def __init__(self, parent_rect, card):
         """
         Initializes the CardPreview.
@@ -371,6 +780,33 @@ class CardPreview(Component):
 
 
 class CardDescription(Component):
+    """
+    A class to create a description of a Card object in a Pygame display.
+
+    This class is a subclass of the Component class. It manages and renders
+    a description of a specific Card object on the game interface.
+
+    Attributes:
+    ----------
+    card : Card
+        The Card object to be described.
+    image_text : str
+        The string representation of the ability type of the Card object.
+    ability_icon : pygame.Surface
+        The icon representing the ability of the Card object.
+    name_font : pygame.font.Font
+        The Font object to be used to render the name of the ability.
+    desc_font : pygame.font.Font
+        The Font object to be used to render the description of the ability.
+
+    Methods:
+    --------
+    __init__(self, parent_rect, card)
+        Initializes the CardDescription object with the given card and parent Rect.
+    draw(self, screen)
+        Draws the description of the card onto the provided screen.
+    """
+
     def __init__(self, parent_rect, card):
         """
         Initializes the CardDescription.
@@ -440,7 +876,44 @@ class CardDescription(Component):
 
 
 class CardContainer(Component):
+    """
+    A class to create a container for Card objects in a Pygame display.
+
+    This class is a subclass of the Component class. It manages and renders
+    multiple Card objects on the game interface in a container layout.
+
+    Attributes:
+    ----------
+    test_card : Card
+        A Card object for testing purposes.
+    cards : list
+        The list of Card objects to be displayed in the container.
+
+    Methods:
+    --------
+    __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        Initializes the CardContainer object with a specified parent Rect and ratios.
+    draw(self, screen)
+        Draws the Card objects in the container onto the provided screen.
+    """
+
     def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        """
+        Initializes the CardContainer.
+
+        Parameters:
+        -----------
+        parent_rect : pygame.Rect
+            The Rect of the parent component.
+        width_ratio : float
+            The width ratio for sizing.
+        height_ratio : float
+            The height ratio for sizing.
+        x_ratio : float
+            The x-coordinate ratio for positioning.
+        y_ratio : float
+            The y-coordinate ratio for positioning.
+        """
         super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.test_card = Card(57, data)
         self.cards = []
@@ -459,6 +932,14 @@ class CardContainer(Component):
         self.cards.append(Card(9, data))
 
     def draw(self, screen):
+        """
+        Draws the Card objects in the container on the screen.
+
+        Parameters:
+        -----------
+        screen : pygame.Surface
+            The surface on which the Card objects are to be drawn.
+        """
         # First, we scale down the card images to fit within the container
         for card in self.cards:
             card.image_scaled = scale_surface(card.image, (self.width, self.height * 0.95))
@@ -539,7 +1020,48 @@ class CardContainer(Component):
 
 
 class Field(Component):
+    """
+    A class to create a Field object, a specific type of Component on a Pygame display.
+
+    This class is a subclass of the Component class. It manages and renders FieldRow
+    objects, or a CardContainer if the field represents a hand, on the game interface.
+
+    Attributes:
+    ----------
+    is_hand : bool
+        A flag indicating whether this field is a hand.
+    field_list : list
+        The list of FieldRow objects or CardContainer object to be displayed in the field.
+
+    Methods:
+    --------
+    __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent, is_hand)
+        Initializes the Field object with a specified parent Rect, ratios and flags.
+    draw(self, screen)
+        Draws the FieldRows or CardContainer in the field onto the provided screen.
+    """
+
     def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent, is_hand):
+        """
+        Initializes the Field.
+
+        Parameters:
+        -----------
+        parent_rect : pygame.Rect
+            The Rect of the parent component.
+        width_ratio : float
+            The width ratio for sizing.
+        height_ratio : float
+            The height ratio for sizing.
+        x_ratio : float
+            The x-coordinate ratio for positioning.
+        y_ratio : float
+            The y-coordinate ratio for positioning.
+        is_opponent : bool
+            A flag indicating whether this field belongs to an opponent.
+        is_hand : bool
+            A flag indicating whether this field is a hand.
+        """
         super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.is_hand = is_hand
         self.field_list = []
@@ -563,6 +1085,14 @@ class Field(Component):
                 self.field_list.append(self.field_row_siege)
 
     def draw(self, screen):
+        """
+        Draws the FieldRows or CardContainer in the field on the screen.
+
+        Parameters:
+        -----------
+        screen : pygame.Surface
+            The surface on which the FieldRows or CardContainer are to be drawn.
+        """
         # Get the mouse cursor position
         mouse_pos = pygame.mouse.get_pos()
         for field in self.field_list:
@@ -574,7 +1104,44 @@ class Field(Component):
 
 
 class PanelMiddle(Component):
+    """
+    A class to create a PanelMiddle object, a specific type of Component on a Pygame display.
+
+    This class is a subclass of the Component class. It manages and renders three
+    different Field objects: the opponent's field, the player's field, and the hand field
+    on the game interface.
+
+    Attributes:
+    ----------
+    field_list : list
+        The list of Field objects (field_op, field_me, field_hand) to be displayed
+        in the middle panel.
+
+    Methods:
+    --------
+    __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        Initializes the PanelMiddle object with a specified parent Rect and ratios.
+    draw(self, screen)
+        Draws the Fields in the middle panel onto the provided screen.
+    """
+
     def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        """
+        Initializes the PanelMiddle.
+
+        Parameters:
+        -----------
+        parent_rect : pygame.Rect
+            The Rect of the parent component.
+        width_ratio : float
+            The width ratio for sizing.
+        height_ratio : float
+            The height ratio for sizing.
+        x_ratio : float
+            The x-coordinate ratio for positioning.
+        y_ratio : float
+            The y-coordinate ratio for positioning.
+        """
         super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.field_list = []
         self.field_op = Field(self, 1, 0.385, 0, 0, True, False)
@@ -585,6 +1152,14 @@ class PanelMiddle(Component):
         self.field_list.append(self.field_hand)
 
     def draw(self, screen):
+        """
+        Draws the Fields in the middle panel on the screen.
+
+        Parameters:
+        -----------
+        screen : pygame.Surface
+            The surface on which the Fields are to be drawn.
+        """
         # Get the mouse cursor position
         mouse_pos = pygame.mouse.get_pos()
         for field in self.field_list:
@@ -662,12 +1237,12 @@ class PanelGame(Component):
         """
         # Get the mouse cursor position
         mouse_pos = pygame.mouse.get_pos()
-        for field in self.panel_list:
-            if not field.rect.collidepoint(mouse_pos):
-                field.draw(screen)
-        for field in self.panel_list:
-            if field.rect.collidepoint(mouse_pos):
-                field.draw(screen)
+        for panel in self.panel_list:
+            if not panel.rect.collidepoint(mouse_pos):
+                panel.draw(screen)
+        for panel in self.panel_list:
+            if panel.rect.collidepoint(mouse_pos):
+                panel.draw(screen)
 
 
 class LeaderBox(Component):
@@ -690,18 +1265,17 @@ class LeaderBox(Component):
         Parameters:
         -----------
         parent_rect : pygame.Rect
-            The Rect of the parent component.
+            The rectangle object that represents the parent component's area.
         width_ratio : float
-            The ratio of the LeaderBox's width to its parent's width.
+            The ratio of the LeaderBox's width to its parent's width. It determines the width of the LeaderBox.
         height_ratio : float
-            The ratio of the LeaderBox's height to its parent's height.
+            The ratio of the LeaderBox's height to its parent's height. It determines the height of the LeaderBox.
         x_ratio : float
-            The ratio of the LeaderBox's x-coordinate to its parent's width.
+            The ratio of the LeaderBox's x-coordinate (left edge) to its parent's width. It determines the horizontal position of the LeaderBox within the parent.
         y_ratio : float
-            The ratio of the LeaderBox's y-coordinate to its parent's height.
+            The ratio of the LeaderBox's y-coordinate (top edge) to its parent's height. It determines the vertical position of the LeaderBox within the parent.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
-                         y_ratio)  # 31.4% of the panel width, 12.5% of the panel height, 27.5% from the left edge of the panel, 7.55% from the top of the panel
+        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
 
 
 class LeaderContainer(Component):
@@ -709,8 +1283,8 @@ class LeaderContainer(Component):
     A class that represents a LeaderContainer, a specific UI component in Pygame.
 
     This class is a subclass of the Component class and is used to contain a
-    "leader" representation, usually an image or text, and it is always centered
-    within the LeaderBox.
+    "leader" representation, usually an image or text. It is designed to be always
+    centered within its parent component, typically a LeaderBox.
 
     Methods:
     --------
@@ -724,23 +1298,25 @@ class LeaderContainer(Component):
         The LeaderContainer is always centered within its parent component, which is
         typically a LeaderBox.
 
+        After initialization, the LeaderContainer's x and y coordinates are updated to
+        ensure it's centered within the parent component. Consequently, its 'rect' attribute
+        is updated to reflect the new position.
+
         Parameters:
         -----------
         parent_rect : pygame.Rect
-            The Rect of the parent component.
+            The rectangle object that represents the parent component's area.
         width_ratio : float
-            The ratio of the LeaderContainer's width to its parent's width.
+            The ratio of the LeaderContainer's width to its parent's width. Determines the width of the LeaderContainer.
         height_ratio : float
-            The ratio of the LeaderContainer's height to its parent's height.
+            The ratio of the LeaderContainer's height to its parent's height. Determines the height of the LeaderContainer.
         """
-        super().__init__(parent_rect, width_ratio,
-                         height_ratio)  # 63% of the leader_box width, 100% of the leader_box height
-        self.x = parent_rect.x + (
-                parent_rect.width - self.width) // 2  # The leader_container is centered within the leader_box
-        self.y = parent_rect.y + (
-                parent_rect.height - self.height) // 2  # The leader_container is centered within the leader_box
-        self.rect = pygame.Rect(self.x, self.y, self.width,
-                                self.height)  # Update the rect with the new x, y coordinates
+        super().__init__(parent_rect, width_ratio, height_ratio)
+        # Center the LeaderContainer within its parent component.
+        self.x = parent_rect.x + (parent_rect.width - self.width) // 2
+        self.y = parent_rect.y + (parent_rect.height - self.height) // 2
+        # Update the rect with the new x, y coordinates
+        self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
 
 
 class LeaderActive(Component):
@@ -942,10 +1518,8 @@ class Stats(Component):
         """
         x_ratio = 0.94 if is_opponent else 0.944
         score_total = ScoreTotal(self, 0.12, 0.4, x_ratio, 0.32, is_opponent)
-        score_total.set_score(10, True)
+        score_total.set_score(300, True)
         return score_total
-
-    # rest of your code here
 
     def draw(self, screen):
         """
@@ -958,18 +1532,13 @@ class Stats(Component):
         """
         screen.blit(self.surface, (self.x, self.y))
         self.profile_image.draw(screen)
-        # self.profile_image.render(screen)
         self.name.draw(screen)
-        # self.opponent_name.render(screen)
         self.deck_name.draw(screen)
-        # self.deck_name_op.render(screen)
         self.hand_count.draw(screen)
-        # self.hand_count_op.render(screen)
         self.gem1.draw(screen)
         self.gem2.draw(screen)
         self.score_total.draw(screen)
         self.passed.draw(screen)
-        # self.passed_op.render(screen)
 
 
 class ProfileImage(Component):
@@ -1478,8 +2047,16 @@ class Weather(Component):
 
     Attributes
     ----------
-    weather_images : list of pygame.Surface
-        The images of various weather conditions to be displayed.
+    frost : Card
+        A Card instance representing the 'frost' weather type.
+    fog : Card
+        A Card instance representing the 'fog' weather type.
+    rain : Card
+        A Card instance representing the 'rain' weather type.
+    clear : Card
+        A Card instance representing the 'clear' weather type.
+    cards : list of Card
+        The list of cards to be displayed, representing current weather conditions.
 
     Methods
     -------
@@ -1518,10 +2095,12 @@ class Weather(Component):
         """
         Adds a new weather type to be displayed.
 
+        If the weather_type is 'clear', no action is taken.
+
         Parameters
         ----------
         weather_type : str
-            The type of weather to be added.
+            The type of weather to be added. Options are 'frost', 'fog', 'rain', and 'clear'.
         """
         if weather_type == 'frost':
             self.cards.append(self.frost)
@@ -1636,92 +2215,6 @@ class ResizableFont:
         """
         self.size = new_size
         self.font = pygame.font.Font(self.path, self.size)
-
-
-def scale_surface(surface, target_size):
-    """
-    Scales a Pygame surface proportionally to fit into the target size.
-
-    Parameters
-    ----------
-    surface : pygame.Surface
-        The surface to be scaled.
-    target_size : tuple of int
-        The target size (width, height).
-
-    Returns
-    -------
-    pygame.Surface
-        The scaled surface.
-    """
-    target_width, target_height = target_size
-    width, height = surface.get_size()
-    scale_factor = min(target_width / width, target_height / height)
-    new_size = (round(width * scale_factor), round(height * scale_factor))
-    return pygame.transform.smoothscale(surface, new_size)
-
-
-def fit_text_in_rect(text, font, color, rect):
-    """
-    Adjusts the font size to fit the text into the rectangle.
-
-    Parameters
-    ----------
-    text : str
-        The text to be rendered.
-    font : ResizableFont
-        The font used to render the text.
-    color : tuple of int
-        The RGB color for the text.
-    rect : pygame.Rect
-        The rectangle within which the text should fit.
-
-    Returns
-    -------
-    pygame.Surface
-        The rendered text.
-    """
-    size = 1  # Start with a small font size
-    font.resize(size)  # Use the same font but with a new size
-    new_text = font.font.render(text, True, color)
-
-    # Increase the size until the text no longer fits within the rectangle
-    while new_text.get_width() <= rect.width and new_text.get_height() <= rect.height:
-        size += 1
-        font.resize(size)
-        new_text = font.font.render(text, True, color)
-
-    # If size was incremented past the point where text fits, reduce size by 1
-    if new_text.get_width() > rect.width or new_text.get_height() > rect.height:
-        size -= 1
-        font.resize(size)
-        new_text = font.font.render(text, True, color)
-
-    return new_text
-
-
-def draw_centered_text(screen, text, rect):
-    """
-    Draws the given text centered in the given rectangle.
-
-    Parameters
-    ----------
-    screen : pygame.Surface
-        The screen onto which the text should be drawn.
-    text : pygame.Surface
-        The text to be drawn.
-    rect : pygame.Rect
-        The rectangle within which the text should be centered.
-    """
-    # Get the width and height of the text
-    text_width, text_height = text.get_size()
-
-    # Calculate the position to center the text
-    pos_x = rect.x + (rect.width - text_width) // 2
-    pos_y = rect.y + (rect.height - text_height) // 2
-
-    # Draw the text on the screen at the calculated position
-    screen.blit(text, (pos_x, pos_y))
 
 
 class DraggableImage:
