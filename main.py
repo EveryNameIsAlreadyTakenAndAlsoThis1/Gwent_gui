@@ -214,6 +214,7 @@ class GameState(Subject):
     def __init__(self):
         super().__init__()
         self.state = 'normal'
+        self.parameter = None
 
     def set_state(self, new_state):
         self.state = new_state
@@ -406,6 +407,11 @@ class Component(Observer):
     def update(self, subject):
         # By default, do nothing when the game state changes.
         # Specific subclasses can override this method to take action when the game state changes.
+        pass
+
+    def handle_event(self, event):
+        # By default, do nothing when the event occurs.
+        # Specific subclasses can override this method to take action when the event occurs.
         pass
 
 
@@ -712,6 +718,7 @@ class RowSpecial(Component):
         self.card = Card(58, data)
         self.special_img = scale_surface(self.card.image, (self.width, self.height * 0.9))
         self.active = True
+        self.allow_hovering = True
 
     def draw(self, screen):
         """
@@ -736,7 +743,7 @@ class RowSpecial(Component):
             card_rect = pygame.Rect(img_x, img_y, img_width, img_height)
             if card_rect.collidepoint(mouse_pos):
                 self.card.hovering = True
-        if self.card.hovering:
+        if self.card.hovering and self.allow_hovering:
             hovering_image = self.card.image.copy()
             hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
             screen.blit(hovering_image, (img_x, img_y))
@@ -745,6 +752,14 @@ class RowSpecial(Component):
             if self.card.ability != '0':
                 card_description = CardDescription(self.game_state, screen.get_rect(), self.card)
                 card_description.draw(screen)
+
+    def update(self, subject):
+        if subject is self.game_state and self.game_state.state == 'carousel':
+            # The game has entered the 'carousel' state, so disable card hovering.
+            self.allow_hovering = False
+        elif subject is self.game_state and self.game_state.state == 'normal':
+            # The game has returned to the 'normal' state, so enable card hovering.
+            self.allow_hovering = True
 
 
 class RowCards(Component):
@@ -1004,6 +1019,7 @@ class CardContainer(Component):
         self.cards.append(Card(7, data))
         self.cards.append(Card(8, data))
         self.cards.append(Card(9, data))
+        self.allow_hovering = True
 
     def draw(self, screen):
         """
@@ -1054,7 +1070,7 @@ class CardContainer(Component):
 
         # Draw hovered card
         for i, card in enumerate(self.cards):
-            if card.hovering:
+            if card.hovering and self.allow_hovering:
                 hovering_image = card.image.copy()
                 hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
                 card_x = start_x + i * (card.image_scaled.get_width() - overlap)
@@ -1065,6 +1081,14 @@ class CardContainer(Component):
                 if card.ability != '0':
                     card_description = CardDescription(self.game_state, screen.get_rect(), card)
                     card_description.draw(screen)
+
+    def update(self, subject):
+        if subject is self.game_state and self.game_state.state == 'carousel':
+            # The game has entered the 'carousel' state, so disable card hovering.
+            self.allow_hovering = False
+        elif subject is self.game_state and self.game_state.state == 'normal':
+            # The game has returned to the 'normal' state, so enable card hovering.
+            self.allow_hovering = True
 
 
 class Field(Component):
@@ -1221,16 +1245,23 @@ class PanelMiddle(Component):
 class PanelRight(Component):
     def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.component_list = []
         self.grave_op = Grave(game_state, self, 0.28, 0.14, 0.065, 0.065)
         self.deck_op = Deck(game_state, self, 0.28, 0.14, 0.51, 0.065, 'monsters')
         self.grave_me = Grave(game_state, self, 0.28, 0.14, 0.065, 0.765)
         self.deck_me = Deck(game_state, self, 0.28, 0.14, 0.51, 0.765, 'monsters')
+        self.component_list.append(self.grave_op)
+        self.component_list.append(self.deck_op)
+        self.component_list.append(self.grave_me)
+        self.component_list.append(self.deck_me)
 
     def draw(self, screen):
-        self.grave_op.draw(screen)
-        self.deck_op.draw(screen)
-        self.grave_me.draw(screen)
-        self.deck_me.draw(screen)
+        for component in self.component_list:
+            component.draw(screen)
+
+    def handle_event(self, event):
+        for component in self.component_list:
+            component.handle_event(event)
 
 
 class PanelGame(Component):
@@ -1258,9 +1289,9 @@ class PanelGame(Component):
         parent_rect : pygame.Rect
             The rectangle representing the area of the parent screen.
         """
-
+        super().__init__(game_state, parent_rect, 1, 1, 0, 0)
         self.panel_list = []
-
+        self.game_state = game_state
         # Initialize the left panel
         width_ratio = 0.265  # takes up 26.5% of the parent's width
         height_ratio = 1
@@ -1282,6 +1313,7 @@ class PanelGame(Component):
         self.panel_list.append(self.panel_right)
 
         self.carousal_active = False
+        self.panel_carousel = Carousel(game_state, parent_rect, 1, 1, 0, 0)
 
     def draw(self, screen):
         """
@@ -1300,10 +1332,27 @@ class PanelGame(Component):
         for panel in self.panel_list:
             if panel.rect.collidepoint(mouse_pos):
                 panel.draw(screen)
+        if self.carousal_active:
+            self.panel_carousel.cards = self.game_state.parameter
+            self.panel_carousel.draw(screen)
 
     def handle_event(self, event):
-        for panel in self.panel_list:
-            pass
+        if self.carousal_active:
+            self.panel_carousel.handle_event(event)
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE and self.game_state.state == 'carousel':
+                    self.game_state.set_state('normal')
+        else:
+            for panel in self.panel_list:
+                panel.handle_event(event)
+
+    def update(self, subject):
+        if subject is self.game_state and self.game_state.state == 'carousel':
+            # The game has entered the 'carousel' state, so disable card hovering.
+            self.carousal_active = True
+        elif subject is self.game_state and self.game_state.state == 'normal':
+            # The game has returned to the 'normal' state, so enable card hovering.
+            self.carousal_active = False
 
 
 class LeaderBox(Component):
@@ -2151,6 +2200,7 @@ class Weather(Component):
         self.fog = Card(61, data)
         self.rain = Card(62, data)
         self.clear = Card(63, data)
+        self.allow_hovering = True
 
     def add_weather(self, weather_type):
         """
@@ -2219,7 +2269,7 @@ class Weather(Component):
 
         # Draw hovered card
         for i, card in enumerate(self.cards):
-            if card.hovering:
+            if card.hovering and self.allow_hovering:
                 hovering_image = card.image.copy()
                 hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
                 card_x = start_x + i * (card.image_scaled.get_width() - overlap)
@@ -2229,6 +2279,14 @@ class Weather(Component):
                 if card.ability != '0':
                     card_description = CardDescription(self.game_state, screen.get_rect(), card)
                     card_description.draw(screen)
+
+    def update(self, subject):
+        if subject is self.game_state and self.game_state.state == 'carousel':
+            # The game has entered the 'carousel' state, so disable card hovering.
+            self.allow_hovering = False
+        elif subject is self.game_state and self.game_state.state == 'normal':
+            # The game has returned to the 'normal' state, so enable card hovering.
+            self.allow_hovering = True
 
 
 class Grave(Component):
@@ -2316,6 +2374,13 @@ class Grave(Component):
                 if i == len(self.cards) - 1:
                     card_strength_text(screen, card, x_position, y_position, card_image)
 
+    def handle_event(self, event):
+        # Get the mouse cursor position
+        mouse_pos = pygame.mouse.get_pos()
+        if event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(mouse_pos):
+            self.game_state.set_state('carousel')
+            self.game_state.parameter = self.cards
+
 
 class Deck(Component):
     """
@@ -2356,11 +2421,11 @@ class Deck(Component):
         self.deck_back_image = pygame.image.load(f'img/icons/deck_back_{deck}.jpg')
         self.deck_back_image = scale_surface(self.deck_back_image, (self.width, self.height))
 
-        self.cards.append(Card(0, data))
-        self.cards.append(Card(0, data))
+        self.cards.append(Card(10, data))
+        self.cards.append(Card(11, data))
 
-        self.cards.append(Card(0, data))
-        self.cards.append(Card(0, data))
+        self.cards.append(Card(12, data))
+        self.cards.append(Card(13, data))
 
     def draw(self, screen):
         """
@@ -2398,6 +2463,111 @@ class Deck(Component):
         text_color = (255, 255, 255)
         text = font.font.render(str(len(self.cards)), True, text_color)
         draw_centered_text(screen, text, card_count_rect)
+
+    def handle_event(self, event):
+        # Get the mouse cursor position
+        mouse_pos = pygame.mouse.get_pos()
+        if event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(mouse_pos):
+            self.game_state.set_state('carousel')
+            self.game_state.parameter = self.cards
+
+
+class Carousel(Component):
+    """
+    A carousel of card images.
+
+    Attributes
+    ----------
+    cards: list of Card
+        The list of cards to be displayed.
+
+    Methods
+    -------
+    draw(screen)
+        Draws the carousel on the screen.
+    next_card()
+        Moves to the next card in the carousel.
+    previous_card()
+        Moves to the previous card in the carousel.
+    """
+
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.cards = []
+        self.current_index = 0
+
+    def draw(self, screen):
+        """
+        Draws the carousel on the screen, with the current card at the center and the other cards off to the sides.
+
+        Parameters
+        ----------
+        screen : pygame.Surface
+            The screen onto which the carousel should be drawn.
+        """
+        # Calculate positions for all cards
+        center_x = self.width / 2
+        center_y = self.height / 2
+
+        # Define the spacing between the cards
+        spacing = 10
+
+        # First calculate and store the position of the enlarged card
+        enlarged_card = self.cards[self.current_index]
+        enlarged_card.image_scaled = scale_surface(enlarged_card.large_image,
+                                                   (self.width / 6 * 1.2, self.height * 1.2))  # Bigger card
+        enlarged_card_x = center_x - enlarged_card.image_scaled.get_width() / 2
+        enlarged_card_y = center_y - enlarged_card.image_scaled.get_height() / 2
+
+        for i, card in enumerate(self.cards):
+            if i == self.current_index:
+                # Draw the enlarged card at the stored position
+                screen.blit(enlarged_card.image_scaled, (enlarged_card_x, enlarged_card_y))
+            else:
+                card.image_scaled = scale_surface(card.large_image, (self.width / 6, self.height))  # Regular size card
+                multiplier = abs(i - self.current_index)
+                if i < self.current_index:  # Card is to the left of the current card
+                    # Calculate position based on the enlarged card's position
+                    x = enlarged_card_x - multiplier * (card.image_scaled.get_width() + spacing)
+                    y = center_y - card.image_scaled.get_height() / 2
+                    screen.blit(card.image_scaled, (x, y))
+                else:  # Card is to the right of the current card
+                    # Calculate position based on the enlarged card's position and add a space width
+                    x = enlarged_card_x + enlarged_card.image_scaled.get_width() + spacing + (multiplier - 1) * (
+                            card.image_scaled.get_width() + spacing)
+                    y = center_y - card.image_scaled.get_height() / 2
+                    screen.blit(card.image_scaled, (x, y))
+
+    def next_card(self):
+        """
+        Moves to the next card in the carousel.
+        """
+        if self.current_index < len(self.cards) - 1:
+            self.current_index += 1
+
+    def previous_card(self):
+        """
+        Moves to the previous card in the carousel.
+        """
+        if self.current_index > 0:
+            self.current_index -= 1
+
+    def handle_event(self, event):
+        """
+        Handles the given event.
+
+        Parameters
+        ----------
+        event : pygame.event.Event
+            The event to handle.
+        """
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            # If the click was on the right side of the current card, move to the next card
+            if event.pos[0] > self.x + self.width / 2:
+                self.next_card()
+            # If the click was on the left side of the current card, move to the previous card
+            elif event.pos[0] < self.x + self.width / 2:
+                self.previous_card()
 
 
 class ResizableFont:
@@ -2636,7 +2806,7 @@ class MyGame(Game):
             if event.type == pygame.QUIT:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
+                if event.key == pygame.K_ESCAPE and self.game_state.state == 'normal':
                     self.running = False
             self.panel_game.handle_event(event)
 
