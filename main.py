@@ -269,7 +269,7 @@ class Card:
         Initializes the Card object with the given ID and data dictionary.
     """
 
-    def __init__(self, _id, data):
+    def __init__(self, _id, data, game_state):
         """
         Initializes the Card object with the given ID and data dictionary.
 
@@ -295,6 +295,13 @@ class Card:
         self.faction = self.data['Faction']
         self.image = self.data['Image']
         self.hovering = False
+        self.rect = None
+        self.is_dragging = False  # Track whether the component is currently being dragged
+        self.mouse_offset = (0, 0)  # Track where the mouse was clicked relative to the top left corner of the component
+        self.game_state = game_state
+        self.hand = None
+        self.position_hand = -1
+        self.is_placed = False
 
         # Initialize the large and small images
         self.large_image = pygame.image.load(f'img/lg/{self.image}')
@@ -340,6 +347,32 @@ class Card:
             self.image.blit(ability_icon, (
                 self.small_image.get_width() - placement_icon.get_width() - ability_icon.get_width(),
                 self.small_image.get_height() - ability_icon.get_height()))  # left to the previous icon
+
+    def render(self, screen):
+        pygame.draw.rect(screen, (255, 0, 0), self.rect, 2)
+
+    def draw(self, screen):
+        screen.blit(scale_surface(self.image, (self.rect.width, self.rect.height)), (self.rect.x, self.rect.y))
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(
+                event.pos) and self.game_state.state == 'normal':
+            self.game_state.parameter = self
+            self.game_state.set_state('dragging')
+            # If the mouse was clicked within the component, start dragging and remember the mouse offset
+            self.is_dragging = True
+            self.mouse_offset = (event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
+
+        elif event.type == pygame.MOUSEBUTTONUP and self.game_state.state == 'dragging':
+            self.game_state.set_state('normal')
+            # If the mouse button was released, stop dragging
+            self.is_dragging = False
+            self.hand.insert(self.position_hand, self)
+        elif event.type == pygame.MOUSEMOTION:
+            # If the mouse was moved and the component is being dragged, update the position of the component
+            if self.is_dragging:
+                self.rect.x = event.pos[0] - self.mouse_offset[0]
+                self.rect.y = event.pos[1] - self.mouse_offset[1]
 
 
 class Component(Observer):
@@ -715,7 +748,7 @@ class RowSpecial(Component):
             The ratio of the RowSpecial's y-coordinate to its parent's height.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
-        self.card = Card(58, data)
+        self.card = Card(58, data, game_state)
         self.special_img = scale_surface(self.card.image, (self.width, self.height * 0.9))
         self.active = True
         self.allow_hovering = True
@@ -760,6 +793,9 @@ class RowSpecial(Component):
         elif subject is self.game_state and self.game_state.state == 'normal':
             # The game has returned to the 'normal' state, so enable card hovering.
             self.allow_hovering = True
+        elif subject is self.game_state and self.game_state.state == 'dragging':
+            # The game has returned to the 'normal' state, so enable card hovering.
+            self.allow_hovering = False
 
 
 class RowCards(Component):
@@ -1004,21 +1040,21 @@ class CardContainer(Component):
             The y-coordinate ratio for positioning.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
-        self.test_card = Card(57, data)
+        self.test_card = Card(57, data, game_state)
         self.cards = []
-        self.cards.append(Card(57, data))
-        self.cards.append(Card(58, data))
-        self.cards.append(Card(59, data))
-        self.cards.append(Card(59, data))
-        self.cards.append(Card(1, data))
-        self.cards.append(Card(2, data))
-        self.cards.append(Card(3, data))
-        self.cards.append(Card(4, data))
-        self.cards.append(Card(5, data))
-        self.cards.append(Card(6, data))
-        self.cards.append(Card(7, data))
-        self.cards.append(Card(8, data))
-        self.cards.append(Card(9, data))
+        self.cards.append(Card(57, data, game_state))
+        self.cards.append(Card(58, data, game_state))
+        self.cards.append(Card(59, data, game_state))
+        self.cards.append(Card(59, data, game_state))
+        self.cards.append(Card(1, data, game_state))
+        self.cards.append(Card(2, data, game_state))
+        self.cards.append(Card(3, data, game_state))
+        self.cards.append(Card(4, data, game_state))
+        self.cards.append(Card(5, data, game_state))
+        self.cards.append(Card(6, data, game_state))
+        self.cards.append(Card(7, data, game_state))
+        self.cards.append(Card(8, data, game_state))
+        self.cards.append(Card(9, data, game_state))
         self.allow_hovering = True
 
     def draw(self, screen):
@@ -1031,11 +1067,13 @@ class CardContainer(Component):
             The surface on which the Card objects are to be drawn.
         """
         # First, we scale down the card images to fit within the container
+        card_width = None
         for card in self.cards:
             card.image_scaled = scale_surface(card.image, (self.width, self.height * 0.95))
+            card_width = card.image_scaled.get_width()
 
         # Calculate the total width of the cards
-        total_card_width = len(self.cards) * self.cards[0].image_scaled.get_width()
+        total_card_width = len(self.cards) * card_width
         overlap = 0
         if total_card_width > self.width:
             # If cards don't fit side by side, calculate the necessary overlap
@@ -1054,6 +1092,7 @@ class CardContainer(Component):
         for i, card in enumerate(self.cards):
             card_x = start_x + i * (card.image_scaled.get_width() - overlap)
             card_rect = pygame.Rect(card_x, start_y, card.image_scaled.get_width(), card.image_scaled.get_height())
+            card.rect = card_rect
             # Check if the mouse is over the card
             card.hovering = False
             if card_rect.collidepoint(mouse_pos):
@@ -1089,6 +1128,18 @@ class CardContainer(Component):
         elif subject is self.game_state and self.game_state.state == 'normal':
             # The game has returned to the 'normal' state, so enable card hovering.
             self.allow_hovering = True
+        elif subject is self.game_state and self.game_state.state == 'dragging':
+            # The game has returned to the 'normal' state, so enable card hovering.
+            self.allow_hovering = False
+            if self.game_state.parameter in self.cards:
+                card_index = self.cards.index(self.game_state.parameter)
+                card = self.cards.pop(card_index)
+                card.position_hand = card_index
+                card.hand = self.cards
+
+    def handle_event(self, event):
+        for card in self.cards:
+            card.handle_event(event)
 
 
 class Field(Component):
@@ -1174,6 +1225,11 @@ class Field(Component):
             if field.rect.collidepoint(mouse_pos):
                 field.draw(screen)
 
+    def handle_event(self, event):
+        if self.game_state.state == 'normal':
+            if self.is_hand:
+                self.field_list[0].handle_event(event)
+
 
 class PanelMiddle(Component):
     """
@@ -1240,6 +1296,10 @@ class PanelMiddle(Component):
         for field in self.field_list:
             if field.rect.collidepoint(mouse_pos):
                 field.draw(screen)
+
+    def handle_event(self, event):
+        if self.game_state.state != 'carousel':
+            self.field_hand.handle_event(event)
 
 
 class PanelRight(Component):
@@ -1332,6 +1392,8 @@ class PanelGame(Component):
         for panel in self.panel_list:
             if panel.rect.collidepoint(mouse_pos):
                 panel.draw(screen)
+            if self.game_state.state == 'dragging':
+                self.game_state.parameter.draw(screen)
         if self.carousal_active:
             self.panel_carousel.cards = self.game_state.parameter
             self.panel_carousel.draw(screen)
@@ -1345,6 +1407,8 @@ class PanelGame(Component):
         else:
             for panel in self.panel_list:
                 panel.handle_event(event)
+        if self.game_state.state == 'dragging':
+            self.game_state.parameter.handle_event(event)
 
     def update(self, subject):
         if subject is self.game_state and self.game_state.state == 'carousel':
@@ -2196,10 +2260,10 @@ class Weather(Component):
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)  # 54.9% of the parent width, 12.75% of the parent height, positioned at 27.9% of the parent width, 41.25% of the parent height
         self.cards = []
-        self.frost = Card(60, data)
-        self.fog = Card(61, data)
-        self.rain = Card(62, data)
-        self.clear = Card(63, data)
+        self.frost = Card(60, data, game_state)
+        self.fog = Card(61, data, game_state)
+        self.rain = Card(62, data, game_state)
+        self.clear = Card(63, data, game_state)
         self.allow_hovering = True
 
     def add_weather(self, weather_type):
@@ -2287,6 +2351,9 @@ class Weather(Component):
         elif subject is self.game_state and self.game_state.state == 'normal':
             # The game has returned to the 'normal' state, so enable card hovering.
             self.allow_hovering = True
+        elif subject is self.game_state and self.game_state.state == 'dragging':
+            # The game has returned to the 'normal' state, so enable card hovering.
+            self.allow_hovering = False
 
 
 class Grave(Component):
@@ -2326,17 +2393,17 @@ class Grave(Component):
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)
         self.cards = []
-        self.cards.append(Card(0, data))
-        self.cards.append(Card(1, data))
-        self.cards.append(Card(2, data))
-        self.cards.append(Card(3, data))
-        self.cards.append(Card(4, data))
-        self.cards.append(Card(5, data))
-        self.cards.append(Card(6, data))
-        self.cards.append(Card(7, data))
-        self.cards.append(Card(8, data))
-        self.cards.append(Card(9, data))
-        self.cards.append(Card(10, data))
+        self.cards.append(Card(0, data, game_state))
+        self.cards.append(Card(1, data, game_state))
+        self.cards.append(Card(2, data, game_state))
+        self.cards.append(Card(3, data, game_state))
+        self.cards.append(Card(4, data, game_state))
+        self.cards.append(Card(5, data, game_state))
+        self.cards.append(Card(6, data, game_state))
+        self.cards.append(Card(7, data, game_state))
+        self.cards.append(Card(8, data, game_state))
+        self.cards.append(Card(9, data, game_state))
+        self.cards.append(Card(10, data, game_state))
 
     def add_card(self, card):
         """
@@ -2421,11 +2488,11 @@ class Deck(Component):
         self.deck_back_image = pygame.image.load(f'img/icons/deck_back_{deck}.jpg')
         self.deck_back_image = scale_surface(self.deck_back_image, (self.width, self.height))
 
-        self.cards.append(Card(10, data))
-        self.cards.append(Card(11, data))
+        self.cards.append(Card(10, data, game_state))
+        self.cards.append(Card(11, data, game_state))
 
-        self.cards.append(Card(12, data))
-        self.cards.append(Card(13, data))
+        self.cards.append(Card(12, data, game_state))
+        self.cards.append(Card(13, data, game_state))
 
     def draw(self, screen):
         """
@@ -2615,158 +2682,6 @@ class ResizableFont:
         """
         self.size = new_size
         self.font = pygame.font.Font(self.path, self.size)
-
-
-class DraggableImage:
-    def __init__(self, x, y, image_path, game_width, game_height):
-        original_image = pygame.image.load(image_path)
-        self.image_size = (game_width // 10, game_height // 7)  # Updated dimensions
-        self.hover_image_size = (game_width // 5, game_height // 3.5)  # Updated dimensions
-        self.image = scale_surface(original_image, self.image_size)
-        self.hover_image = scale_surface(original_image, self.hover_image_size)
-        self.rect = self.image.get_rect(topleft=(x, y))
-        self.dragging = False
-        self.hovering = False
-        self.selected = False
-
-    def draw(self, screen):
-        if self.hovering:
-            # calculate the new x and y coordinates
-            hover_x = self.rect.x - (self.hover_image_size[0] - self.image_size[0]) // 2
-            hover_y = self.rect.y - (self.hover_image_size[1] - self.image_size[1]) // 2 - 50
-
-            # adjust x if the hover image would go out of the screen on the left or right
-            if hover_x < 0:
-                hover_x = 0
-            elif hover_x + self.hover_image_size[0] > screen.get_width():
-                hover_x = screen.get_width() - self.hover_image_size[0]
-
-            # adjust y if the hover image would go out of the screen on the top or bottom
-            if hover_y < 0:
-                hover_y = 0
-            elif hover_y + self.hover_image_size[1] > screen.get_height():
-                hover_y = screen.get_height() - self.hover_image_size[1]
-
-            screen.blit(self.hover_image, (hover_x, hover_y))
-        else:
-            screen.blit(self.image, self.rect)
-
-    def handle_event(self, event, green_rect, red_rect):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.rect.collidepoint(event.pos):
-                self.dragging = True
-                self.hovering = False  # Update here to stop hovering effect when dragging
-                mouse_x, mouse_y = event.pos
-                self.offset_x = self.rect.x - mouse_x
-                self.offset_y = self.rect.y - mouse_y
-                return self
-        elif event.type == pygame.MOUSEBUTTONUP:
-            self.dragging = False
-            if not (green_rect.colliderect(self.rect) or red_rect.colliderect(self.rect)):
-                self.rect.topleft = green_rect.topleft
-        elif event.type == pygame.MOUSEMOTION:
-            if self.dragging:
-                mouse_x, mouse_y = event.pos
-                self.rect.x = mouse_x + self.offset_x
-                self.rect.y = mouse_y + self.offset_y
-                return self
-
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:  # 3 is for right button
-            if self.rect.collidepoint(event.pos):
-                self.selected = not self.selected
-                return self
-
-    def update(self, mouse_pos, dragged_image):
-        if not self.dragging and self != dragged_image:
-            if self.rect.collidepoint(mouse_pos):
-                self.hovering = True
-            else:
-                self.hovering = False
-
-
-class GameObject:
-    def __init__(self, screen_width, screen_height):
-        self.screen_width = screen_width
-        self.screen_height = screen_height
-        self.image_width = 81
-        self.image_height = self.screen_height // 7
-        num_images = 10  # Number of images
-        rect_width = self.image_width * num_images  # Width of the rectangles
-        # Calculate the x-coordinate for centering the rectangles
-        green_rect_x = (self.screen_width - rect_width) // 2
-        red_rect_x = (self.screen_width - rect_width) // 2
-
-        self.green_rect = pygame.Rect(green_rect_x, self.screen_height - self.image_height,
-                                      rect_width, self.image_height)
-        self.red_rect = pygame.Rect(red_rect_x, 0,
-                                    rect_width, self.image_height)
-        self.images = [
-            DraggableImage(self.green_rect.x + self.image_width * (i % num_images),
-                           self.green_rect.y + self.image_height * (i // num_images), 'decoy.png', self.screen_width,
-                           self.screen_height)
-            for i in range(0)  # Change the range to the number of images you have
-        ]
-        self.dragged_image = None
-
-    def draw(self, screen):
-        hover_image = None  # Keep track of the image being hovered over
-        for image in self.images:
-            if image.hovering and not image.dragging:
-                hover_image = image
-            elif image != self.dragged_image:
-                image.draw(screen)
-
-        dragged_image = None
-        for image in self.images:
-            if image.dragging and not image.hovering:
-                dragged_image = image
-
-        if self.dragged_image:
-            self.dragged_image.draw(screen)  # Draw the image being dragged last
-        if hover_image and not dragged_image:
-            hover_image.draw(screen)  # Draw the image being hovered over last
-        for image in self.images:
-            if image.selected:
-                enlarged_image = pygame.transform.scale(image.image, (self.screen_width, self.screen_height))
-                screen.blit(enlarged_image, (0, 0))
-
-    def handle_event(self, event):
-        for image in self.images:
-            dragged_image = image.handle_event(event, self.green_rect, self.red_rect)
-            if dragged_image:
-                self.dragged_image = dragged_image
-        if event.type == pygame.MOUSEBUTTONUP:
-            self.reposition_images()
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:  # 1 is for left button
-            for image in self.images:
-                if image.selected:
-                    image.selected = False
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
-            for image in reversed(self.images):  # reverse order to select topmost image first
-                if image.rect.collidepoint(event.pos):
-                    image.selected = not image.selected
-                    return  # return after the first image is selected/deselected, preventing multiple selections/deselections
-
-    def reposition_images(self):
-        green_images = [img for img in self.images if self.green_rect.colliderect(img.rect)]
-        red_images = [img for img in self.images if self.red_rect.colliderect(img.rect)]
-
-        num_green_images = len(green_images)
-        num_red_images = len(red_images)
-
-        green_image_width = self.image_width * 10 / num_green_images if num_green_images > 10 else self.image_width
-        red_image_width = self.image_width * 10 / num_red_images if num_red_images > 10 else self.image_width
-
-        for i, img in enumerate(green_images):
-            img.rect.topleft = (self.green_rect.x + green_image_width * i, self.green_rect.y)
-
-        for i, img in enumerate(red_images):
-            img.rect.topleft = (self.red_rect.x + red_image_width * i, self.red_rect.y)
-
-    def update(self):
-        mouse_pos = pygame.mouse.get_pos()
-        for image in self.images:
-            image.update(mouse_pos, self.dragged_image)
 
 
 class Game:
