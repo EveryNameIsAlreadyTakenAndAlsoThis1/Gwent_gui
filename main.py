@@ -150,7 +150,74 @@ def draw_centered_text(screen, text, rect):
     screen.blit(text, (pos_x, pos_y))
 
 
+def card_strength_text(screen, card, card_x, start_y, image):
+    """
+    Draws the strength text of a card if it exists.
+
+    Parameters
+    ----------
+    screen : pygame.Surface
+        The screen onto which the strength text should be drawn.
+    card : Card
+        The card whose strength text should be drawn.
+    card_x : int
+        The x-coordinate where the card is drawn.
+    start_y : int
+        The y-coordinate where the card is drawn.
+    image : pygame.Surface
+        The surface of the card image.
+    """
+    if card.strength_text is None:
+        return
+
+    font_small = ResizableFont('Arial Narrow.ttf', 20)
+    if card.type == 'Hero':
+        text_color = (255, 255, 255)
+    elif card.type == 'Unit' and card.strength == card.strength_text:
+        text_color = (0, 0, 0)
+    elif card.type == 'Unit' and card.strength < card.strength_text:
+        text_color = (0, 255, 0)
+    elif card.type == 'Unit' and card.strength > card.strength_text:
+        text_color = (255, 0, 0)
+    text_rect = pygame.Rect(card_x, start_y, image.get_width() / 2.7,
+                            image.get_height() / 4)
+    text = font_small.font.render(str(card.strength_text), True, text_color)
+    draw_centered_text(screen, text, text_rect)
+
+
 data = load_file('Gwent.csv')
+
+
+class Observer:
+    def update(self, subject):
+        raise NotImplementedError
+
+
+class Subject:
+    def __init__(self):
+        self._observers = []
+
+    def register(self, observer):
+        if observer not in self._observers:
+            self._observers.append(observer)
+
+    def unregister(self, observer):
+        if observer in self._observers:
+            self._observers.remove(observer)
+
+    def notify(self):
+        for observer in self._observers:
+            observer.update(self)
+
+
+class GameState(Subject):
+    def __init__(self):
+        super().__init__()
+        self.state = 'normal'
+
+    def set_state(self, new_state):
+        self.state = new_state
+        self.notify()
 
 
 class Card:
@@ -274,7 +341,7 @@ class Card:
                 self.small_image.get_height() - ability_icon.get_height()))  # left to the previous icon
 
 
-class Component:
+class Component(Observer):
     """
     A class that represents a Component in Pygame.
 
@@ -300,7 +367,7 @@ class Component:
         Draws a red rectangle on the screen representing the component.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio=0, y_ratio=0):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio=0, y_ratio=0):
         """
         Initializes the Component.
 
@@ -322,6 +389,8 @@ class Component:
         self.x = parent_rect.x + int(parent_rect.width * x_ratio)
         self.y = parent_rect.y + int(parent_rect.height * y_ratio)
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
+        self.game_state = game_state
+        self.game_state.register(self)
 
     def render(self, screen):
         """
@@ -333,6 +402,11 @@ class Component:
             The surface on which the component is to be drawn.
         """
         pygame.draw.rect(screen, (255, 0, 0), self.rect, 2)
+
+    def update(self, subject):
+        # By default, do nothing when the game state changes.
+        # Specific subclasses can override this method to take action when the game state changes.
+        pass
 
 
 class PanelLeft(Component):
@@ -371,7 +445,7 @@ class PanelLeft(Component):
         Draws the stats and weather components on the screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the PanelLeft.
 
@@ -384,17 +458,17 @@ class PanelLeft(Component):
         height_ratio : float
             The ratio of the panel's height to its parent's height.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
 
-        self.weather = Weather(self, 0.549, 0.1275, 0.279, 0.416)
+        self.weather = Weather(game_state, self, 0.549, 0.1275, 0.279, 0.416)
         self.weather.add_weather('rain')
         self.weather.add_weather('frost')
         self.weather.add_weather('fog')
 
-        self.setup_leader_stats(0.0755, 0.2425, True)
-        self.setup_leader_stats(0.7755, 0.6175, False)
+        self.setup_leader_stats(game_state, 0.0755, 0.2425, True)
+        self.setup_leader_stats(game_state, 0.7755, 0.6175, False)
 
-    def setup_leader_stats(self, y_ratio_lb, y_ratio_stats, is_opponent):
+    def setup_leader_stats(self, game_state, y_ratio_lb, y_ratio_stats, is_opponent):
         """
         Sets up the leader stats components.
 
@@ -407,10 +481,10 @@ class PanelLeft(Component):
         is_opponent : bool
             A flag indicating whether the stats are for the opponent or the player.
         """
-        leader_box = LeaderBox(self.rect, 0.314, 0.125, 0.275, y_ratio_lb)
-        leader_container = LeaderContainer(self.rect, 0.63, 1)
-        leader_active = LeaderActive(self.rect, 0.24, 0.28, 0.75, 0.33)
-        stats = Stats(self.rect, 0.89, 0.125, 0, y_ratio_stats, is_opponent)
+        leader_box = LeaderBox(game_state, self.rect, 0.314, 0.125, 0.275, y_ratio_lb)
+        leader_container = LeaderContainer(game_state, self.rect, 0.63, 1)
+        leader_active = LeaderActive(game_state, self.rect, 0.24, 0.28, 0.75, 0.33)
+        stats = Stats(game_state, self.rect, 0.89, 0.125, 0, y_ratio_stats, is_opponent)
 
         if is_opponent:
             self.leader_box_op = leader_box
@@ -465,7 +539,7 @@ class RowScore(Component):
         Draws the score text onto the provided screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the RowScore object with the given ratios relative to the parent Rect.
 
@@ -485,7 +559,7 @@ class RowScore(Component):
         y_ratio : float
             The ratio of the RowScore's y-coordinate to its parent's height.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.font_small = ResizableFont('Arial Narrow.ttf', 24)
         self.text_color = (0, 0, 0)
         self.text_rect = pygame.Rect(self.x, self.y, self.width, self.height)
@@ -545,7 +619,7 @@ class FieldRow(Component):
         Draws the row's score, special condition, and cards onto the provided screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the FieldRow object with the given ratios relative to the parent Rect.
 
@@ -564,11 +638,11 @@ class FieldRow(Component):
         y_ratio : float
             The ratio of the FieldRow's y-coordinate to its parent's height.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
-        self.row_score = RowScore(self, 0.051, 0.4, 0.002, 0.31)
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.row_score = RowScore(game_state, self, 0.051, 0.4, 0.002, 0.31)
         self.row_score.set_score(10)
-        self.row_special = RowSpecial(self, 0.1425, 1, 0.055, 0)
-        self.row_cards = RowCards(self, 0.797, 1, 0.2, 0)
+        self.row_special = RowSpecial(game_state, self, 0.1425, 1, 0.055, 0)
+        self.row_cards = RowCards(game_state, self, 0.797, 1, 0.2, 0)
 
     def draw(self, screen):
         """
@@ -615,7 +689,7 @@ class RowSpecial(Component):
         Draws the special card onto the provided screen if the row is active.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the RowSpecial object with the given ratios relative to the parent Rect.
 
@@ -634,7 +708,7 @@ class RowSpecial(Component):
         y_ratio : float
             The ratio of the RowSpecial's y-coordinate to its parent's height.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.card = Card(58, data)
         self.special_img = scale_surface(self.card.image, (self.width, self.height * 0.9))
         self.active = True
@@ -666,10 +740,10 @@ class RowSpecial(Component):
             hovering_image = self.card.image.copy()
             hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
             screen.blit(hovering_image, (img_x, img_y))
-            card_preview = CardPreview(screen.get_rect(), self.card)
+            card_preview = CardPreview(self.game_state, screen.get_rect(), self.card)
             card_preview.draw(screen)
             if self.card.ability != '0':
-                card_description = CardDescription(screen.get_rect(), self.card)
+                card_description = CardDescription(self.game_state, screen.get_rect(), self.card)
                 card_description.draw(screen)
 
 
@@ -693,7 +767,7 @@ class RowCards(Component):
         Draws the card container onto the provided screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the RowCards object with the given ratios relative to the parent Rect.
 
@@ -712,9 +786,9 @@ class RowCards(Component):
         y_ratio : float
             The ratio of the RowCards's y-coordinate to its parent's height.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
 
-        self.card_container = CardContainer(self, 1, 1, 0, 0)
+        self.card_container = CardContainer(game_state, self, 1, 1, 0, 0)
 
     def draw(self, screen):
         """
@@ -749,7 +823,7 @@ class CardPreview(Component):
         Draws the preview of the card onto the provided screen.
     """
 
-    def __init__(self, parent_rect, card):
+    def __init__(self, game_state, parent_rect, card):
         """
         Initializes the CardPreview.
 
@@ -760,7 +834,7 @@ class CardPreview(Component):
         card : Card
             The Card object to be previewed.
         """
-        super().__init__(parent_rect, 0.16, 0.55, 0.805, 0.205)
+        super().__init__(game_state, parent_rect, 0.16, 0.55, 0.805, 0.205)
         self.card = card
 
     def draw(self, screen):
@@ -807,7 +881,7 @@ class CardDescription(Component):
         Draws the description of the card onto the provided screen.
     """
 
-    def __init__(self, parent_rect, card):
+    def __init__(self, game_state, parent_rect, card):
         """
         Initializes the CardDescription.
 
@@ -818,7 +892,7 @@ class CardDescription(Component):
         card : Card
             The Card object to be described.
         """
-        super().__init__(parent_rect, 29.12 / 100, 0.15, 67.95 / 100, 0.76)
+        super().__init__(game_state, parent_rect, 29.12 / 100, 0.15, 67.95 / 100, 0.76)
         self.card = card
 
         self.image_text = self.card.ability.lower()
@@ -897,7 +971,7 @@ class CardContainer(Component):
         Draws the Card objects in the container onto the provided screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the CardContainer.
 
@@ -914,7 +988,7 @@ class CardContainer(Component):
         y_ratio : float
             The y-coordinate ratio for positioning.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.test_card = Card(57, data)
         self.cards = []
         self.cards.append(Card(57, data))
@@ -976,20 +1050,7 @@ class CardContainer(Component):
         for i, card in enumerate(self.cards):
             card_x = start_x + i * (card.image_scaled.get_width() - overlap)
             screen.blit(card.image_scaled, (card_x, start_y))
-            if card.strength_text is not None:
-                font_small = ResizableFont('Arial Narrow.ttf', 20)
-                if card.type == 'Hero':
-                    text_color = (255, 255, 255)
-                elif card.type == 'Unit' and card.strength == card.strength_text:
-                    text_color = (0, 0, 0)
-                elif card.type == 'Unit' and card.strength < card.strength_text:
-                    text_color = (0, 255, 0)
-                elif card.type == 'Unit' and card.strength > card.strength_text:
-                    text_color = (255, 0, 0)
-                text_rect = pygame.Rect(card_x, start_y, card.image_scaled.get_width() / 2.7,
-                                        card.image_scaled.get_height() / 4)
-                text = font_small.font.render(str(card.strength_text), True, text_color)
-                draw_centered_text(screen, text, text_rect)
+            card_strength_text(screen, card, card_x, start_y, card.image_scaled)
 
         # Draw hovered card
         for i, card in enumerate(self.cards):
@@ -998,24 +1059,11 @@ class CardContainer(Component):
                 hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
                 card_x = start_x + i * (card.image_scaled.get_width() - overlap)
                 screen.blit(hovering_image, (card_x, start_y))
-                card_preview = CardPreview(screen.get_rect(), card)
+                card_preview = CardPreview(self.game_state, screen.get_rect(), card)
                 card_preview.draw(screen)
-                if card.strength_text is not None:
-                    font_small = ResizableFont('Arial Narrow.ttf', 20)
-                    if card.type == 'Hero':
-                        text_color = (255, 255, 255)
-                    elif card.type == 'Unit' and card.strength == card.strength_text:
-                        text_color = (0, 0, 0)
-                    elif card.type == 'Unit' and card.strength < card.strength_text:
-                        text_color = (0, 255, 0)
-                    elif card.type == 'Unit' and card.strength > card.strength_text:
-                        text_color = (255, 0, 0)
-                    text_rect = pygame.Rect(card_x, start_y, hovering_image.get_width() / 2.7,
-                                            hovering_image.get_height() / 4)
-                    text = font_small.font.render(str(card.strength_text), True, text_color)
-                    draw_centered_text(screen, text, text_rect)
+                card_strength_text(screen, card, card_x, start_y, hovering_image)
                 if card.ability != '0':
-                    card_description = CardDescription(screen.get_rect(), card)
+                    card_description = CardDescription(self.game_state, screen.get_rect(), card)
                     card_description.draw(screen)
 
 
@@ -1041,7 +1089,7 @@ class Field(Component):
         Draws the FieldRows or CardContainer in the field onto the provided screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent, is_hand):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent, is_hand):
         """
         Initializes the Field.
 
@@ -1062,24 +1110,24 @@ class Field(Component):
         is_hand : bool
             A flag indicating whether this field is a hand.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.is_hand = is_hand
         self.field_list = []
         if is_hand:
-            self.card_container = CardContainer(self, 1, 1, 0, 0)
+            self.card_container = CardContainer(game_state, self, 1, 1, 0, 0)
             self.field_list.append(self.card_container)
         else:
             if is_opponent:
-                self.field_row_siege = FieldRow(self, 1, 0.32, 0, 0.021)
-                self.field_row_ranged = FieldRow(self, 1, 0.32, 0, 0.335)
-                self.field_row_melee = FieldRow(self, 1, 0.32, 0, 0.67)
+                self.field_row_siege = FieldRow(game_state, self, 1, 0.32, 0, 0.021)
+                self.field_row_ranged = FieldRow(game_state, self, 1, 0.32, 0, 0.335)
+                self.field_row_melee = FieldRow(game_state, self, 1, 0.32, 0, 0.67)
                 self.field_list.append(self.field_row_melee)
                 self.field_list.append(self.field_row_ranged)
                 self.field_list.append(self.field_row_siege)
             else:
-                self.field_row_melee = FieldRow(self, 1, 0.32, 0, 0.021)
-                self.field_row_ranged = FieldRow(self, 1, 0.32, 0, 0.335)
-                self.field_row_siege = FieldRow(self, 1, 0.32, 0, 0.67)
+                self.field_row_melee = FieldRow(game_state, self, 1, 0.32, 0, 0.021)
+                self.field_row_ranged = FieldRow(game_state, self, 1, 0.32, 0, 0.335)
+                self.field_row_siege = FieldRow(game_state, self, 1, 0.32, 0, 0.67)
                 self.field_list.append(self.field_row_melee)
                 self.field_list.append(self.field_row_ranged)
                 self.field_list.append(self.field_row_siege)
@@ -1125,7 +1173,7 @@ class PanelMiddle(Component):
         Draws the Fields in the middle panel onto the provided screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the PanelMiddle.
 
@@ -1142,11 +1190,11 @@ class PanelMiddle(Component):
         y_ratio : float
             The y-coordinate ratio for positioning.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.field_list = []
-        self.field_op = Field(self, 1, 0.385, 0, 0, True, False)
-        self.field_me = Field(self, 1, 0.385, 0, 0.388, False, False)
-        self.field_hand = Field(self, 0.938, 0.13, 0.062, 0.775, False, True)
+        self.field_op = Field(game_state, self, 1, 0.385, 0, 0, True, False)
+        self.field_me = Field(game_state, self, 1, 0.385, 0, 0.388, False, False)
+        self.field_hand = Field(game_state, self, 0.938, 0.13, 0.062, 0.775, False, True)
         self.field_list.append(self.field_op)
         self.field_list.append(self.field_me)
         self.field_list.append(self.field_hand)
@@ -1171,11 +1219,18 @@ class PanelMiddle(Component):
 
 
 class PanelRight(Component):
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.grave_op = Grave(game_state, self, 0.28, 0.14, 0.065, 0.065)
+        self.deck_op = Deck(game_state, self, 0.28, 0.14, 0.51, 0.065, 'monsters')
+        self.grave_me = Grave(game_state, self, 0.28, 0.14, 0.065, 0.765)
+        self.deck_me = Deck(game_state, self, 0.28, 0.14, 0.51, 0.765, 'monsters')
 
     def draw(self, screen):
-        pass
+        self.grave_op.draw(screen)
+        self.deck_op.draw(screen)
+        self.grave_me.draw(screen)
+        self.deck_me.draw(screen)
 
 
 class PanelGame(Component):
@@ -1194,7 +1249,7 @@ class PanelGame(Component):
         The right panel of the game.
     """
 
-    def __init__(self, parent_rect):
+    def __init__(self, game_state, parent_rect):
         """
         Initializes a new instance of PanelGame.
 
@@ -1211,20 +1266,22 @@ class PanelGame(Component):
         height_ratio = 1
         x_ratio = 0  # starts at the left edge of the parent
         y_ratio = 0  # starts at the top edge of the parent
-        self.panel_left = PanelLeft(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.panel_left = PanelLeft(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
 
         # Initialize the middle panel
         width_ratio = 0.525  # takes up 52.5% of the parent's width
         x_ratio = 0.265  # starts at 26.5% of the width of the parent
-        self.panel_middle = PanelMiddle(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.panel_middle = PanelMiddle(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
 
         # Initialize the right panel
         width_ratio = 0.21  # takes up 21% of the parent's width
         x_ratio = 0.79  # starts at 79% of the width of the parent
-        self.panel_right = PanelRight(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.panel_right = PanelRight(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.panel_list.append(self.panel_left)
         self.panel_list.append(self.panel_middle)
         self.panel_list.append(self.panel_right)
+
+        self.carousal_active = False
 
     def draw(self, screen):
         """
@@ -1244,6 +1301,10 @@ class PanelGame(Component):
             if panel.rect.collidepoint(mouse_pos):
                 panel.draw(screen)
 
+    def handle_event(self, event):
+        for panel in self.panel_list:
+            pass
+
 
 class LeaderBox(Component):
     """
@@ -1258,7 +1319,7 @@ class LeaderBox(Component):
     No additional methods are implemented in this subclass.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the LeaderBox.
 
@@ -1275,7 +1336,7 @@ class LeaderBox(Component):
         y_ratio : float
             The ratio of the LeaderBox's y-coordinate (top edge) to its parent's height. It determines the vertical position of the LeaderBox within the parent.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
 
 
 class LeaderContainer(Component):
@@ -1291,7 +1352,7 @@ class LeaderContainer(Component):
     No additional methods are implemented in this subclass.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio):
         """
         Initializes the LeaderContainer.
 
@@ -1311,7 +1372,7 @@ class LeaderContainer(Component):
         height_ratio : float
             The ratio of the LeaderContainer's height to its parent's height. Determines the height of the LeaderContainer.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio)
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio)
         # Center the LeaderContainer within its parent component.
         self.x = parent_rect.x + (parent_rect.width - self.width) // 2
         self.y = parent_rect.y + (parent_rect.height - self.height) // 2
@@ -1331,7 +1392,7 @@ class LeaderActive(Component):
     No additional methods are implemented in this subclass.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the LeaderActive.
 
@@ -1350,7 +1411,7 @@ class LeaderActive(Component):
         y_ratio : float
             The ratio of the LeaderActive's y position to its parent's height.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)  # 24% of the leader_box width, 28% of the leader_box height, positioned within the leader_box
 
 
@@ -1379,7 +1440,7 @@ class Stats(Component):
         Draws the stats on the provided pygame.Surface.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
         """
         Initializes the Stats component.
 
@@ -1398,7 +1459,7 @@ class Stats(Component):
         is_opponent : bool
             A flag that represents whether the Stats are for the opponent or the player.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.font_small = ResizableFont('Arial Narrow.ttf', 24)
         self.surface = pygame.Surface((self.width, self.height))
         self.surface.fill((20, 20, 20))
@@ -1411,7 +1472,7 @@ class Stats(Component):
         self.gem1 = self.create_gem(0.8, is_opponent)
         self.gem2 = self.create_gem(0.7075, is_opponent)
         self.score_total = self.create_score_total(is_opponent)
-        self.passed = Passed(self, 0.25, 0.25, 0.9, 0.87)
+        self.passed = Passed(game_state, self, 0.25, 0.25, 0.9, 0.87)
 
     def create_profile_image(self, is_opponent):
         """
@@ -1428,7 +1489,7 @@ class Stats(Component):
             The created profile image.
         """
         y_ratio = 0.096 if is_opponent else 0.096
-        return ProfileImage(self, 0.219, 0.8, 0.284, y_ratio, 'monsters', is_opponent)
+        return ProfileImage(self.game_state, self, 0.219, 0.8, 0.284, y_ratio, 'monsters', is_opponent)
 
     def create_name(self, is_opponent):
         """
@@ -1445,7 +1506,7 @@ class Stats(Component):
             The created player name.
         """
         y_ratio = 0 if is_opponent else 0.56
-        return PlayerName(self, 0.47, 0.2, 0.53, y_ratio, is_opponent)
+        return PlayerName(self.game_state, self, 0.47, 0.2, 0.53, y_ratio, is_opponent)
 
     def create_deck_name(self, deck_name, is_opponent):
         """
@@ -1464,7 +1525,7 @@ class Stats(Component):
             The created deck name.
         """
         y_ratio = 0.25 if is_opponent else 0.80
-        return DeckName(self, 0.47, 0.125, 0.53, y_ratio, deck_name)
+        return DeckName(self.game_state, self, 0.47, 0.125, 0.53, y_ratio, deck_name)
 
     def create_hand_count(self, is_opponent):
         """
@@ -1481,7 +1542,7 @@ class Stats(Component):
             The created hand count.
         """
         y_ratio = 0.585 if is_opponent else 0.185
-        return HandCount(self, 0.17, 0.295, 0.5325, y_ratio)
+        return HandCount(self.game_state, self, 0.17, 0.295, 0.5325, y_ratio)
 
     def create_gem(self, x_ratio, is_opponent):
         """
@@ -1500,7 +1561,7 @@ class Stats(Component):
             The created gem.
         """
         y_ratio = 0.56 if is_opponent else 0.145
-        return Gem(self, 0.09, 0.31, x_ratio, y_ratio)
+        return Gem(self.game_state, self, 0.09, 0.31, x_ratio, y_ratio)
 
     def create_score_total(self, is_opponent):
         """
@@ -1517,7 +1578,7 @@ class Stats(Component):
             The created score total.
         """
         x_ratio = 0.94 if is_opponent else 0.944
-        score_total = ScoreTotal(self, 0.12, 0.4, x_ratio, 0.32, is_opponent)
+        score_total = ScoreTotal(self.game_state, self, 0.12, 0.4, x_ratio, 0.32, is_opponent)
         score_total.set_score(300, True)
         return score_total
 
@@ -1562,7 +1623,7 @@ class ProfileImage(Component):
         Draw the profile image, its background, and the faction image onto the given screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, faction, opponent):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, faction, opponent):
         """
         Initializes a new instance of ProfileImage.
 
@@ -1583,9 +1644,9 @@ class ProfileImage(Component):
         opponent : bool
             Flag indicating whether this profile image is for the opponent.
         """
-        super().__init__(
-            parent_rect, width_ratio, height_ratio, x_ratio,
-            y_ratio)
+        super().__init__(game_state,
+                         parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)
         self.opponent = opponent
         self.profile_img_pic = pygame.image.load('img/icons/profile.png')
         self.profile_img_pic = pygame.transform.scale(self.profile_img_pic, (self.width, self.height))
@@ -1637,7 +1698,7 @@ class PlayerName(Component):
         Draw the player's name onto the given screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
         """
         Initializes a new instance of PlayerName.
 
@@ -1656,9 +1717,9 @@ class PlayerName(Component):
         is_opponent : bool
             Flag indicating whether this name is for the opponent.
         """
-        super().__init__(
-            parent_rect, width_ratio, height_ratio, x_ratio,
-            y_ratio)
+        super().__init__(game_state,
+                         parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)
         self.font_size = int(parent_rect.height * height_ratio)  # 20% of the stats_op height
         self.font = ResizableFont('Arial Narrow.ttf', self.font_size)
         if is_opponent:
@@ -1697,7 +1758,7 @@ class DeckName(Component):
         Draw the deck's name onto the given screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, deck_name):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, deck_name):
         """
         Initializes a new instance of DeckName.
 
@@ -1716,7 +1777,7 @@ class DeckName(Component):
         deck_name : str
             The name of the deck.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)
         self.font_size = int(parent_rect.height * height_ratio)  # 16% of the stats_op height
         self.font = ResizableFont('Arial Narrow.ttf', self.font_size)
@@ -1755,7 +1816,7 @@ class Gem(Component):
         Change the state of the gem.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes a new instance of Gem.
 
@@ -1772,7 +1833,7 @@ class Gem(Component):
         y_ratio : float
             The ratio of this component's y position to its parent's height.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)
         self.gem_on_image = pygame.image.load('img/icons/icon_gem_on.png')
         self.gem_on_image = pygame.transform.scale(self.gem_on_image, (self.width, self.height))
@@ -1830,7 +1891,7 @@ class HandCount(Component):
         Change the hand count displayed.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes a new instance of HandCount.
 
@@ -1847,7 +1908,7 @@ class HandCount(Component):
         y_ratio : float
             The ratio of this component's y position to its parent's height.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)
         self.font_small = ResizableFont('Arial Narrow.ttf', 24)
         self.hand_count_image = pygame.image.load('img/icons/icon_card_count.png')
@@ -1915,7 +1976,7 @@ class ScoreTotal(Component):
         Draw the score total icon and text, and the high score icon if this score is the high score, onto the given screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
         """
         Initializes a new instance of ScoreTotal.
 
@@ -1934,7 +1995,7 @@ class ScoreTotal(Component):
         is_opponent : bool
             Indicates whether this score total is for the opponent.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)  # 12% of the parent width, 40% of the parent height,
         # positioned at 94.5% of the parent width, 25% of the parent height
         self.is_opponent = is_opponent
@@ -2006,7 +2067,7 @@ class Passed(Component):
         Draw the 'Passed' text onto the given screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes a new instance of Passed.
 
@@ -2023,7 +2084,7 @@ class Passed(Component):
         y_ratio : float
             The ratio of this component's y position to its parent's height.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)  # 0% height, 0% width, positioned at 90% of the parent width, 87% of the parent height
         self.font_size = int(parent_rect.height * height_ratio)  # 16% of the stats_op height
         self.font = ResizableFont('Arial Narrow.ttf', self.font_size)
@@ -2066,7 +2127,7 @@ class Weather(Component):
         Draws the weather images onto the given screen.
     """
 
-    def __init__(self, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes a new instance of Weather.
 
@@ -2083,7 +2144,7 @@ class Weather(Component):
         y_ratio : float
             The ratio of this component's y position to its parent's height.
         """
-        super().__init__(parent_rect, width_ratio, height_ratio, x_ratio,
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)  # 54.9% of the parent width, 12.75% of the parent height, positioned at 27.9% of the parent width, 41.25% of the parent height
         self.cards = []
         self.frost = Card(60, data)
@@ -2163,11 +2224,180 @@ class Weather(Component):
                 hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
                 card_x = start_x + i * (card.image_scaled.get_width() - overlap)
                 screen.blit(hovering_image, (card_x, start_y))
-                card_preview = CardPreview(screen.get_rect(), card)
+                card_preview = CardPreview(self.game_state, screen.get_rect(), card)
                 card_preview.draw(screen)
                 if card.ability != '0':
-                    card_description = CardDescription(screen.get_rect(), card)
+                    card_description = CardDescription(self.game_state, screen.get_rect(), card)
                     card_description.draw(screen)
+
+
+class Grave(Component):
+    """
+    This class represents a Grave component, which stores discarded or destroyed game cards.
+
+    Attributes
+    ----------
+    cards : list
+        The list of discarded or destroyed game cards.
+
+    Methods
+    -------
+    add_card(card: Card)
+        Adds a card to the Grave.
+    draw(screen: pygame.Surface)
+        Draws the Grave onto the given screen.
+    """
+
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        """
+        Initializes a new instance of Grave.
+
+        Parameters
+        ----------
+        parent_rect : pygame.Rect
+            Rectangle of the parent container.
+        width_ratio : float
+            The ratio of this component's width to its parent's width.
+        height_ratio : float
+            The ratio of this component's height to its parent's height.
+        x_ratio : float
+            The ratio of this component's x position to its parent's width.
+        y_ratio : float
+            The ratio of this component's y position to its parent's height.
+        """
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
+                         y_ratio)
+        self.cards = []
+        self.cards.append(Card(0, data))
+        self.cards.append(Card(1, data))
+        self.cards.append(Card(2, data))
+        self.cards.append(Card(3, data))
+        self.cards.append(Card(4, data))
+        self.cards.append(Card(5, data))
+        self.cards.append(Card(6, data))
+        self.cards.append(Card(7, data))
+        self.cards.append(Card(8, data))
+        self.cards.append(Card(9, data))
+        self.cards.append(Card(10, data))
+
+    def add_card(self, card):
+        """
+        Adds a card to the Grave.
+
+        Parameters
+        ----------
+        card : Card
+            The card to be added to the Grave.
+        """
+        self.cards.append(card)
+
+    def draw(self, screen):
+        """
+        Draws the Grave onto the given screen.
+
+        Each card after the first one will be placed one pixel to the left and to the top from the previous card to create an effect that they are on top of each other. The first card will be centered in the middle with both width and height.
+
+        Parameters
+        ----------
+        screen : pygame.Surface
+            The screen onto which the Grave should be drawn.
+        """
+        if len(self.cards) > 0:
+            for i, card in enumerate(self.cards):
+                card_image = scale_surface(card.image, (self.width * 0.9, self.height * 0.9))
+                x_position = self.x - i + (self.width - card_image.get_width()) // 2
+                y_position = self.y - i + (self.height - card_image.get_height()) // 2
+
+                # Ensuring the card does not go beyond the container's dimensions
+                x_position = max(x_position, 0)
+                y_position = max(y_position, 0)
+
+                screen.blit(card_image, (x_position, y_position))
+                if i == len(self.cards) - 1:
+                    card_strength_text(screen, card, x_position, y_position, card_image)
+
+
+class Deck(Component):
+    """
+    This class represents a Deck component, which displays the deck of cards.
+
+    Attributes
+    ----------
+    deck_back_image : pygame.Surface
+        The back image of the deck of cards to be displayed.
+
+    Methods
+    -------
+    draw(screen: pygame.Surface)
+        Draws the deck of cards onto the given screen.
+    """
+
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, deck):
+        """
+        Initializes a new instance of Deck.
+
+        Parameters
+        ----------
+        parent_rect : pygame.Rect
+            Rectangle of the parent container.
+        width_ratio : float
+            The ratio of this component's width to its parent's width.
+        height_ratio : float
+            The ratio of this component's height to its parent's height.
+        x_ratio : float
+            The ratio of this component's x position to its parent's width.
+        y_ratio : float
+            The ratio of this component's y position to its parent's height.
+        deck : str
+            The deck type, used to determine the back image of the deck.
+        """
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.cards = []
+        self.deck_back_image = pygame.image.load(f'img/icons/deck_back_{deck}.jpg')
+        self.deck_back_image = scale_surface(self.deck_back_image, (self.width, self.height))
+
+        self.cards.append(Card(0, data))
+        self.cards.append(Card(0, data))
+
+        self.cards.append(Card(0, data))
+        self.cards.append(Card(0, data))
+
+    def draw(self, screen):
+        """
+        Draws the deck of cards onto the given screen.
+
+        If there are no cards to display, the method does nothing.
+
+        Parameters
+        ----------
+        screen : pygame.Surface
+            The screen onto which the deck of cards should be drawn.
+        """
+        if not self.cards:
+            return
+
+        card = self.cards[-1]
+        card_image_scaled = self.deck_back_image
+        center_x = self.x + self.width / 2
+        center_y = self.y + self.height / 2
+
+        for i in range(len(self.cards) - 1, -1, -1):
+            card_x = center_x - card_image_scaled.get_width() / 2 - i
+            card_y = center_y - card_image_scaled.get_height() / 2 - i
+            screen.blit(card_image_scaled, (card_x, card_y))
+
+        # Draw card count rectangle
+        card_count_rect = pygame.Rect(center_x - 25, center_y - 10, 50, 20)
+        s = pygame.Surface((50, 20))  # the size of your rect
+        s.set_alpha(200)  # alpha level
+        s.fill((20, 20, 20))  # this fills the entire surface
+        screen.blit(s, (center_x - 25, center_y - 10))  # (0,0) are the top-left coordinates
+
+        # Draw card count text
+        font = ResizableFont('Arial Narrow.ttf', 20)
+        text_color = (255, 255, 255)
+        text = font.font.render(str(len(self.cards)), True, text_color)
+        draw_centered_text(screen, text, card_count_rect)
 
 
 class ResizableFont:
@@ -2379,14 +2609,19 @@ class Game:
         self.screen = pygame.display.set_mode((self.width, self.height), pygame.FULLSCREEN)
         self.clock = pygame.time.Clock()
         self.running = True
-        self.font_small = ResizableFont('Arial Narrow.ttf', 24)
 
+
+class MyGame(Game):
+    def __init__(self):
+        super().__init__()
+        self.font_small = ResizableFont('Arial Narrow.ttf', 24)
         # Load the background image
         self.background_image = pygame.image.load('img/board.jpg')  # Replace with your image path
         self.background_image = pygame.transform.scale(self.background_image,
                                                        (self.width, self.height))  # Scale the image to fit the screen
-
-        self.panel_game = PanelGame(self.screen.get_rect())
+        # Create the game state object
+        self.game_state = GameState()
+        self.panel_game = PanelGame(self.game_state, self.screen.get_rect())
 
     def run(self):
         while self.running:
@@ -2403,34 +2638,18 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
-            self.game_object.handle_event(event)
+            self.panel_game.handle_event(event)
 
     def update(self):
-        self.game_object.update()
+        pass
+        # self.game_object.update()
 
     def draw(self):
         self.screen.blit(self.background_image, (0, 0))
         self.panel_game.draw(self.screen)
 
-        self.game_object.draw(self.screen)
+        # self.game_object.draw(self.screen)
         pygame.display.flip()
-
-
-class MyGame(Game):
-    def __init__(self):
-        super().__init__()
-        self.game_object = GameObject(self.width, self.height)  # pass the width and height
-        fake_event = pygame.event.Event(pygame.MOUSEBUTTONUP)  # Create a fake event
-        self.game_object.handle_event(fake_event)  # Handle the fake event
-
-    def handle_events(self):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    self.running = False
-            self.game_object.handle_event(event)
 
 
 if __name__ == '__main__':
