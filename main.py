@@ -189,100 +189,174 @@ data = load_file('Gwent.csv')
 
 
 class Observer:
+    """
+    The Observer class represents an observer in the observer design pattern.
+    This is an abstract base class that should be subclassed to implement the update method.
+    """
+
     def update(self, subject):
+        """
+        Update the observer based on changes in the subject.
+
+        Parameters
+        ----------
+        subject : Subject
+            The subject that has changed, causing the observer to need to update.
+        """
         raise NotImplementedError
 
 
 class Subject:
+    """
+    The Subject class represents a subject in the observer design pattern.
+    This class maintains a list of observers and notifies them of changes.
+    """
+
     def __init__(self):
+        """
+        Initialize a new Subject.
+
+        A Subject is an object that can have observers. When the subject changes, it can notify its observers to update.
+        """
         self._observers = []
 
     def register(self, observer):
+        """
+        Register a new observer to be notified of changes in the subject.
+
+        Parameters
+        ----------
+        observer : Observer
+            The observer to register.
+        """
         if observer not in self._observers:
             self._observers.append(observer)
 
     def unregister(self, observer):
+        """
+        Unregister an observer so it will no longer be notified of changes in the subject.
+
+        Parameters
+        ----------
+        observer : Observer
+            The observer to unregister.
+        """
         if observer in self._observers:
             self._observers.remove(observer)
 
     def notify(self):
+        """
+        Notify all registered observers that the subject has changed.
+        """
         for observer in self._observers:
             observer.update(self)
 
 
 class GameState(Subject):
+    """
+    The GameState class represents the state of a game and notifies observers of changes.
+    It is a subclass of the Subject class and overrides the set_state method.
+    """
+
     def __init__(self):
+        """
+        Initialize a new GameState.
+
+        A GameState is a specific type of subject that represents the state of a game.
+        """
         super().__init__()
         self.state = 'normal'
         self.parameter = None
 
     def set_state(self, new_state):
+        """
+        Set the state of the game and notify all observers of the change.
+
+        Parameters
+        ----------
+        new_state : str
+            The new state to set.
+        """
         self.state = new_state
         self.notify()
 
 
 class Card:
     """
-    A class that represents a Card in the game.
-
-    This class is responsible for loading and storing all relevant attributes of a card,
-    including its name, strength, ability, type, placement, count, faction, and image.
-    It also provides functionality to render the card image, including small icons
-    indicating its type and placement on the game field.
+    A class representing a Card in the game, complete with all relevant attributes and methods to manage the card's
+    state and visual representation.
 
     Attributes:
     ----------
     _id : int
-        The unique identifier of the card.
+        A unique identifier of the card.
     data : dict
-        A dictionary containing all information about the card.
+        Dictionary containing all relevant information about the card.
     name : str
-        The name of the card.
+        Name of the card.
     strength : int
-        The strength value of the card.
+        Strength value of the card.
     ability : str
-        The ability of the card.
+        The specific ability of the card.
     type : str
-        The type of the card, can be "Hero", "Unit", "Weather", "Decoy", "Morale", or "Scorch".
+        The type/category of the card.
     placement : int
-        The placement of the card, a value between 0 and 4.
+        The placement of the card.
     count : int
-        The count of the card, indicating how many of this card exist.
+        The count/number of such cards.
     faction : str
-        The faction the card belongs to.
+        The faction to which the card belongs.
     image : str
-        The filename of the card's image.
+        Filename of the card's image.
     hovering : bool
         A flag indicating whether the mouse cursor is hovering over the card.
+    rect : pygame.Rect or None
+        The rectangular area representing the card's position and size on the screen.
+    is_dragging : bool
+        A flag indicating whether the card is currently being dragged.
+    mouse_offset : tuple
+        The position of the mouse click relative to the top-left corner of the card.
+    game_state : GameState
+        A GameState object that represents the current state of the game.
+    hand : list or None
+        The list representing the hand of cards that this card is a part of.
+    position_hand : int
+        The position of the card within the hand list.
+    is_placed : bool
+        A flag indicating whether the card is placed on the board.
     large_image : pygame.Surface
-        The large version of the card's image, loaded from the corresponding file.
+        A pygame Surface object representing the large version of the card's image.
     small_image : pygame.Surface
-        The small version of the card's image, loaded from the corresponding file.
-    image_scaled : pygame.Surface
+        A pygame Surface object representing the small version of the card's image.
+    image_scaled : pygame.Surface or None
         The card's image scaled according to the card's current state.
     strength_text : str or None
-        The strength of the card as text, or None if the card is not a "Hero" or "Unit".
+        The strength of the card in text form.
 
     Methods:
     --------
-    __init__(self, _id, data):
-        Initializes the Card object with the given ID and data dictionary.
+    __init__(self, _id, data, game_state):
+        Initializes the Card object with the given ID, data dictionary and game state.
+    render(self, screen):
+        Draws a rectangular border around the card.
+    draw(self, screen):
+        Draws the card on the screen.
+    handle_event(self, event):
+        Handles mouse events related to the card.
     """
 
     def __init__(self, _id, data, game_state):
         """
-        Initializes the Card object with the given ID and data dictionary.
-
-        The Card data dictionary includes its name, strength, ability, type, placement, count,
-        faction, and image. The large and small versions of the card's image are loaded and
-        additional icons (type, placement, and ability) are added to the small image.
+        Initializes the Card object with the given ID, data dictionary, and game state.
 
         Parameters:
-        -----------
+        ----------
         _id : int
             The unique identifier of the card.
         data : dict
-            A dictionary containing all information about the card.
+            A dictionary containing all relevant information about the card.
+        game_state : GameState
+            The current state of the game.
         """
         self._id = _id
         self.data = data[_id]
@@ -349,12 +423,38 @@ class Card:
                 self.small_image.get_height() - ability_icon.get_height()))  # left to the previous icon
 
     def render(self, screen):
+        """
+        Draws a rectangular border around the card.
+
+        Parameters:
+        ----------
+        screen : pygame.Surface
+            The screen onto which the card should be drawn.
+        """
         pygame.draw.rect(screen, (255, 0, 0), self.rect, 2)
 
     def draw(self, screen):
+        """
+        Draws the card on the screen with its image and strength text.
+
+        Parameters:
+        ----------
+        screen : pygame.Surface
+            The screen onto which the card should be drawn.
+        """
         screen.blit(scale_surface(self.image, (self.rect.width, self.rect.height)), (self.rect.x, self.rect.y))
+        card_strength_text(screen, self, self.rect.x, self.rect.y, self.image_scaled)
 
     def handle_event(self, event):
+        """
+        Handles mouse events related to the card, including starting and stopping dragging,
+        and updating the card's position while dragging.
+
+        Parameters:
+        ----------
+        event : pygame.Event
+            The event to handle.
+        """
         if event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(
                 event.pos) and self.game_state.state == 'normal':
             self.game_state.parameter = self
@@ -397,8 +497,10 @@ class Component(Observer):
 
     Methods:
     --------
-    render(screen)
-        Draws a red rectangle on the screen representing the component.
+    update(subject)
+        Responds to changes in the GameState object.
+    handle_event(event)
+        Responds to a Pygame event.
     """
 
     def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio=0, y_ratio=0):
@@ -438,11 +540,29 @@ class Component(Observer):
         pygame.draw.rect(screen, (255, 0, 0), self.rect, 2)
 
     def update(self, subject):
+        """
+        Responds to changes in the GameState object. By default, this method does nothing.
+        Subclasses can override this method to take action when the game state changes.
+
+        Parameters:
+        -----------
+        subject : Subject
+            The Subject object (typically a GameState object) that has just changed.
+        """
         # By default, do nothing when the game state changes.
         # Specific subclasses can override this method to take action when the game state changes.
         pass
 
     def handle_event(self, event):
+        """
+        Responds to a Pygame event. By default, this method does nothing.
+        Subclasses can override this method to take action when the event occurs.
+
+        Parameters:
+        -----------
+        event : pygame.Event
+            The event that occurred.
+        """
         # By default, do nothing when the event occurs.
         # Specific subclasses can override this method to take action when the event occurs.
         pass
