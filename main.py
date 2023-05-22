@@ -376,6 +376,7 @@ class Card:
         self.hand = None
         self.position_hand = -1
         self.is_placed = False
+        self.parent_container = None
 
         # Initialize the large and small images
         self.large_image = pygame.image.load(f'img/lg/{self.image}')
@@ -456,23 +457,34 @@ class Card:
             The event to handle.
         """
         if event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(
-                event.pos) and self.game_state.state == 'normal':
+                event.pos) and self.game_state.state == 'normal' and (
+                self.parent_container is None or self.parent_container.row_id == -1):
             self.game_state.parameter = self
             self.game_state.set_state('dragging')
             # If the mouse was clicked within the component, start dragging and remember the mouse offset
             self.is_dragging = True
             self.mouse_offset = (event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
 
+        elif event.type == pygame.MOUSEBUTTONUP and self.game_state.state == 'normal':
+            if self.rect.collidepoint(event.pos) and self.game_state.parameter != self:
+                check_valid_action(self, self.game_state.parameter, self.game_state)
         elif event.type == pygame.MOUSEBUTTONUP and self.game_state.state == 'dragging':
             self.game_state.set_state('normal')
             # If the mouse button was released, stop dragging
             self.is_dragging = False
-            self.hand.insert(self.position_hand, self)
         elif event.type == pygame.MOUSEMOTION:
             # If the mouse was moved and the component is being dragged, update the position of the component
             if self.is_dragging:
                 self.rect.x = event.pos[0] - self.mouse_offset[0]
                 self.rect.y = event.pos[1] - self.mouse_offset[1]
+
+
+def check_valid_action(card_board, card_dragged, game_state):
+    if card_board is None or card_dragged is None:
+        pass
+    else:
+        print(card_dragged._id, card_board.parent_container.row_id)
+
 
 
 class Component(Observer):
@@ -778,7 +790,7 @@ class FieldRow(Component):
         Draws the row's score, special condition, and cards onto the provided screen.
     """
 
-    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, row_id, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the FieldRow object with the given ratios relative to the parent Rect.
 
@@ -798,10 +810,11 @@ class FieldRow(Component):
             The ratio of the FieldRow's y-coordinate to its parent's height.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.row_id = row_id
         self.row_score = RowScore(game_state, self, 0.051, 0.4, 0.002, 0.31)
         self.row_score.set_score(10)
         self.row_special = RowSpecial(game_state, self, 0.1425, 1, 0.055, 0)
-        self.row_cards = RowCards(game_state, self, 0.797, 1, 0.2, 0)
+        self.row_cards = RowCards(self.row_id, game_state, self, 0.797, 1, 0.2, 0)
 
     def draw(self, screen):
         """
@@ -821,6 +834,9 @@ class FieldRow(Component):
         self.row_cards.draw(screen)
         # self.row_special.render(screen)
         # self.row_cards.render(screen)
+
+    def handle_event(self, event):
+        self.row_cards.handle_event(event)
 
 
 class RowSpecial(Component):
@@ -938,7 +954,7 @@ class RowCards(Component):
         Draws the card container onto the provided screen.
     """
 
-    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, row_id, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the RowCards object with the given ratios relative to the parent Rect.
 
@@ -958,8 +974,8 @@ class RowCards(Component):
             The ratio of the RowCards's y-coordinate to its parent's height.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
-
-        self.card_container = CardContainer(game_state, self, 1, 1, 0, 0)
+        self.row_id = row_id
+        self.card_container = CardContainer(row_id, game_state, self, 1, 1, 0, 0)
 
     def draw(self, screen):
         """
@@ -972,6 +988,9 @@ class RowCards(Component):
         """
         self.card_container.draw(screen)
         # self.card_container.render(screen)
+
+    def handle_event(self, event):
+        self.card_container.handle_event(event)
 
 
 class CardPreview(Component):
@@ -1142,7 +1161,7 @@ class CardContainer(Component):
         Draws the Card objects in the container onto the provided screen.
     """
 
-    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, row_id, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the CardContainer.
 
@@ -1160,6 +1179,7 @@ class CardContainer(Component):
             The y-coordinate ratio for positioning.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.row_id = row_id
         self.test_card = Card(57, data, game_state)
         self.cards = []
         self.cards.append(Card(57, data, game_state))
@@ -1186,60 +1206,61 @@ class CardContainer(Component):
         screen : pygame.Surface
             The surface on which the Card objects are to be drawn.
         """
-        # First, we scale down the card images to fit within the container
-        card_width = None
-        for card in self.cards:
-            card.image_scaled = scale_surface(card.image, (self.width, self.height * 0.95))
-            card_width = card.image_scaled.get_width()
+        if len(self.cards) > 0:
+            # First, we scale down the card images to fit within the container
+            card_width = None
+            for card in self.cards:
+                card.image_scaled = scale_surface(card.image, (self.width, self.height * 0.95))
+                card_width = card.image_scaled.get_width()
 
-        # Calculate the total width of the cards
-        total_card_width = len(self.cards) * card_width
-        overlap = 0
-        if total_card_width > self.width:
-            # If cards don't fit side by side, calculate the necessary overlap
-            overlap = (total_card_width - self.width) / (len(self.cards) - 1)
+            # Calculate the total width of the cards
+            total_card_width = len(self.cards) * card_width
+            overlap = 0
+            if total_card_width > self.width:
+                # If cards don't fit side by side, calculate the necessary overlap
+                overlap = (total_card_width - self.width) / (len(self.cards) - 1)
 
-        # Calculate the starting x position for the cards to center them
-        start_x = self.x + (self.width - total_card_width + overlap * (len(self.cards) - 1)) / 2
+            # Calculate the starting x position for the cards to center them
+            start_x = self.x + (self.width - total_card_width + overlap * (len(self.cards) - 1)) / 2
 
-        # Calculate the y position to center the cards vertically
-        card_height = self.cards[0].image_scaled.get_height()
-        start_y = self.y + (self.height * 0.95 - card_height) / 2
+            # Calculate the y position to center the cards vertically
+            card_height = self.cards[0].image_scaled.get_height()
+            start_y = self.y + (self.height * 0.95 - card_height) / 2
 
-        # Get the mouse cursor position
-        mouse_pos = pygame.mouse.get_pos()
+            # Get the mouse cursor position
+            mouse_pos = pygame.mouse.get_pos()
 
-        for i, card in enumerate(self.cards):
-            card_x = start_x + i * (card.image_scaled.get_width() - overlap)
-            card_rect = pygame.Rect(card_x, start_y, card.image_scaled.get_width(), card.image_scaled.get_height())
-            card.rect = card_rect
-            # Check if the mouse is over the card
-            card.hovering = False
-            if card_rect.collidepoint(mouse_pos):
-                card.hovering = True
-                for j, card_2 in enumerate(self.cards):
-                    if card is not card_2:
-                        card_2.hovering = False
-
-        # Draw each card
-        for i, card in enumerate(self.cards):
-            card_x = start_x + i * (card.image_scaled.get_width() - overlap)
-            screen.blit(card.image_scaled, (card_x, start_y))
-            card_strength_text(screen, card, card_x, start_y, card.image_scaled)
-
-        # Draw hovered card
-        for i, card in enumerate(self.cards):
-            if card.hovering and self.allow_hovering:
-                hovering_image = card.image.copy()
-                hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
+            for i, card in enumerate(self.cards):
                 card_x = start_x + i * (card.image_scaled.get_width() - overlap)
-                screen.blit(hovering_image, (card_x, start_y))
-                card_preview = CardPreview(self.game_state, screen.get_rect(), card)
-                card_preview.draw(screen)
-                card_strength_text(screen, card, card_x, start_y, hovering_image)
-                if card.ability != '0':
-                    card_description = CardDescription(self.game_state, screen.get_rect(), card)
-                    card_description.draw(screen)
+                card_rect = pygame.Rect(card_x, start_y, card.image_scaled.get_width(), card.image_scaled.get_height())
+                card.rect = card_rect
+                # Check if the mouse is over the card
+                card.hovering = False
+                if card_rect.collidepoint(mouse_pos):
+                    card.hovering = True
+                    for j, card_2 in enumerate(self.cards):
+                        if card is not card_2:
+                            card_2.hovering = False
+
+            # Draw each card
+            for i, card in enumerate(self.cards):
+                card_x = start_x + i * (card.image_scaled.get_width() - overlap)
+                screen.blit(card.image_scaled, (card_x, start_y))
+                card_strength_text(screen, card, card_x, start_y, card.image_scaled)
+
+            # Draw hovered card
+            for i, card in enumerate(self.cards):
+                if card.hovering and self.allow_hovering:
+                    hovering_image = card.image.copy()
+                    hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
+                    card_x = start_x + i * (card.image_scaled.get_width() - overlap)
+                    screen.blit(hovering_image, (card_x, start_y))
+                    card_preview = CardPreview(self.game_state, screen.get_rect(), card)
+                    card_preview.draw(screen)
+                    card_strength_text(screen, card, card_x, start_y, hovering_image)
+                    if card.ability != '0':
+                        card_description = CardDescription(self.game_state, screen.get_rect(), card)
+                        card_description.draw(screen)
 
     def update(self, subject):
         if subject is self.game_state and self.game_state.state == 'carousel':
@@ -1259,6 +1280,7 @@ class CardContainer(Component):
 
     def handle_event(self, event):
         for card in self.cards:
+            card.parent_container = self
             card.handle_event(event)
 
 
@@ -1309,20 +1331,20 @@ class Field(Component):
         self.is_hand = is_hand
         self.field_list = []
         if is_hand:
-            self.card_container = CardContainer(game_state, self, 1, 1, 0, 0)
+            self.card_container = CardContainer(-1, game_state, self, 1, 1, 0, 0)
             self.field_list.append(self.card_container)
         else:
             if is_opponent:
-                self.field_row_siege = FieldRow(game_state, self, 1, 0.32, 0, 0.021)
-                self.field_row_ranged = FieldRow(game_state, self, 1, 0.32, 0, 0.335)
-                self.field_row_melee = FieldRow(game_state, self, 1, 0.32, 0, 0.67)
+                self.field_row_siege = FieldRow(game_state, 2, self, 1, 0.32, 0, 0.021)
+                self.field_row_ranged = FieldRow(game_state, 1, self, 1, 0.32, 0, 0.335)
+                self.field_row_melee = FieldRow(game_state, 0, self, 1, 0.32, 0, 0.67)
                 self.field_list.append(self.field_row_melee)
                 self.field_list.append(self.field_row_ranged)
                 self.field_list.append(self.field_row_siege)
             else:
-                self.field_row_melee = FieldRow(game_state, self, 1, 0.32, 0, 0.021)
-                self.field_row_ranged = FieldRow(game_state, self, 1, 0.32, 0, 0.335)
-                self.field_row_siege = FieldRow(game_state, self, 1, 0.32, 0, 0.67)
+                self.field_row_melee = FieldRow(game_state, 0, self, 1, 0.32, 0, 0.021)
+                self.field_row_ranged = FieldRow(game_state, 1, self, 1, 0.32, 0, 0.335)
+                self.field_row_siege = FieldRow(game_state, 2, self, 1, 0.32, 0, 0.67)
                 self.field_list.append(self.field_row_melee)
                 self.field_list.append(self.field_row_ranged)
                 self.field_list.append(self.field_row_siege)
@@ -1349,6 +1371,9 @@ class Field(Component):
         if self.game_state.state == 'normal':
             if self.is_hand:
                 self.field_list[0].handle_event(event)
+        if self.game_state.state != 'carousel':
+            for fieldRow in self.field_list:
+                fieldRow.handle_event(event)
 
 
 class PanelMiddle(Component):
@@ -1419,7 +1444,8 @@ class PanelMiddle(Component):
 
     def handle_event(self, event):
         if self.game_state.state != 'carousel':
-            self.field_hand.handle_event(event)
+            for field in self.field_list:
+                field.handle_event(event)
 
 
 class PanelRight(Component):
