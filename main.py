@@ -486,7 +486,6 @@ def check_valid_action(card_board, card_dragged, game_state):
         print(card_dragged._id, card_board.parent_container.row_id)
 
 
-
 class Component(Observer):
     """
     A class that represents a Component in Pygame.
