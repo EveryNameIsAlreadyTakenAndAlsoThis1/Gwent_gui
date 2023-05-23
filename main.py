@@ -1,4 +1,8 @@
 import pygame
+import random
+import time
+import os
+from Game.Game import Game
 
 
 def load_file(file_path):
@@ -59,6 +63,41 @@ def load_file(file_path):
             'Count': int(count),
             'Faction': current_group,
             'Image': image
+        })
+
+    return result
+
+
+def load_file_game(file_path):
+    with open(file_path, 'r') as f:
+        data = f.read().splitlines()
+
+    result = {}
+    current_group = None
+
+    for line in data:
+        if line == '':
+            continue
+
+        if 'Northern Realms' in line or 'Scoiatael' in line or 'Neutral' in line or 'Nilfgaard' in line or 'Monsters' in line:
+            current_group = line.strip(',')
+            result[current_group] = []
+            continue
+
+        name, _id, strength, ability, card_type, placement, count = line.split(',')
+
+        if name == 'Name':
+            continue
+
+        result[current_group].append({
+            'Name': name,
+            'Id': int(_id),
+            'Strength': int(strength),
+            'Ability': ability,
+            'Type': card_type,
+            'Placement': int(placement),
+            'Count': int(count),
+            'Faction': current_group
         })
 
     return result
@@ -171,6 +210,7 @@ def card_strength_text(screen, card, card_x, start_y, image):
         return
 
     font_small = ResizableFont('Arial Narrow.ttf', 20)
+    text_color = (0, 0, 0)
     if card.type == 'Hero':
         text_color = (255, 255, 255)
     elif card.type == 'Unit' and card.strength == card.strength_text:
@@ -267,6 +307,8 @@ class GameState(Subject):
         super().__init__()
         self.state = 'normal'
         self.parameter = None
+        self.parameter_actions = []
+        self.game_state_matrix = None
 
     def set_state(self, new_state):
         """
@@ -458,7 +500,7 @@ class Card:
         """
         if event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(
                 event.pos) and self.game_state.state == 'normal' and (
-                self.parent_container is None or self.parent_container.row_id == -1):
+                self.parent_container is not None and self.parent_container.row_id == -1):
             self.game_state.parameter = self
             self.game_state.set_state('dragging')
             # If the mouse was clicked within the component, start dragging and remember the mouse offset
@@ -483,7 +525,8 @@ def check_valid_action(card_board, card_dragged, game_state):
     if card_board is None or card_dragged is None:
         pass
     else:
-        print(card_dragged._id, card_board.parent_container.row_id)
+        game_state.parameter_actions.append(
+            str(card_dragged._id) + ',' + str(card_board.parent_container.row_id) + ',' + str(card_board._id))
 
 
 class Component(Observer):
@@ -631,10 +674,6 @@ class PanelLeft(Component):
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
 
         self.weather = Weather(game_state, self, 0.549, 0.1275, 0.279, 0.416)
-        self.weather.add_weather('rain')
-        self.weather.add_weather('frost')
-        self.weather.add_weather('fog')
-
         self.setup_leader_stats(game_state, 0.0755, 0.2425, True)
         self.setup_leader_stats(game_state, 0.7755, 0.6175, False)
 
@@ -789,7 +828,7 @@ class FieldRow(Component):
         Draws the row's score, special condition, and cards onto the provided screen.
     """
 
-    def __init__(self, game_state, row_id, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, row_id, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
         """
         Initializes the FieldRow object with the given ratios relative to the parent Rect.
 
@@ -811,9 +850,9 @@ class FieldRow(Component):
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.row_id = row_id
         self.row_score = RowScore(game_state, self, 0.051, 0.4, 0.002, 0.31)
-        self.row_score.set_score(10)
         self.row_special = RowSpecial(game_state, self, 0.1425, 1, 0.055, 0)
-        self.row_cards = RowCards(self.row_id, game_state, self, 0.797, 1, 0.2, 0)
+        self.row_cards = RowCards(self.row_id, game_state, self, 0.797, 1, 0.2, 0, is_opponent)
+        self.is_opponent = is_opponent
 
     def draw(self, screen):
         """
@@ -836,6 +875,21 @@ class FieldRow(Component):
 
     def handle_event(self, event):
         self.row_cards.handle_event(event)
+
+    def update(self, subject):
+        if subject is self.game_state and self.game_state.state == 'normal':
+            if self.is_opponent:
+                self.row_score.set_score(int(self.game_state.game_state_matrix[0][142 + self.row_id]))
+                if self.game_state.game_state_matrix[0][136 + self.row_id] > 1:
+                    self.row_special.active = True
+                else:
+                    self.row_special.active = False
+            else:
+                self.row_score.set_score(int(self.game_state.game_state_matrix[0][139 + self.row_id]))
+                if self.game_state.game_state_matrix[0][133 + self.row_id] > 1:
+                    self.row_special.active = True
+                else:
+                    self.row_special.active = False
 
 
 class RowSpecial(Component):
@@ -953,7 +1007,7 @@ class RowCards(Component):
         Draws the card container onto the provided screen.
     """
 
-    def __init__(self, row_id, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, row_id, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
         """
         Initializes the RowCards object with the given ratios relative to the parent Rect.
 
@@ -974,7 +1028,7 @@ class RowCards(Component):
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.row_id = row_id
-        self.card_container = CardContainer(row_id, game_state, self, 1, 1, 0, 0)
+        self.card_container = CardContainer(row_id, game_state, self, 1, 1, 0, 0, is_opponent)
 
     def draw(self, screen):
         """
@@ -986,7 +1040,6 @@ class RowCards(Component):
             The Surface onto which the components will be drawn.
         """
         self.card_container.draw(screen)
-        # self.card_container.render(screen)
 
     def handle_event(self, event):
         self.card_container.handle_event(event)
@@ -1160,7 +1213,7 @@ class CardContainer(Component):
         Draws the Card objects in the container onto the provided screen.
     """
 
-    def __init__(self, row_id, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, row_id, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
         """
         Initializes the CardContainer.
 
@@ -1178,22 +1231,9 @@ class CardContainer(Component):
             The y-coordinate ratio for positioning.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.is_opponent = is_opponent
         self.row_id = row_id
-        self.test_card = Card(57, data, game_state)
         self.cards = []
-        self.cards.append(Card(57, data, game_state))
-        self.cards.append(Card(58, data, game_state))
-        self.cards.append(Card(59, data, game_state))
-        self.cards.append(Card(59, data, game_state))
-        self.cards.append(Card(1, data, game_state))
-        self.cards.append(Card(2, data, game_state))
-        self.cards.append(Card(3, data, game_state))
-        self.cards.append(Card(4, data, game_state))
-        self.cards.append(Card(5, data, game_state))
-        self.cards.append(Card(6, data, game_state))
-        self.cards.append(Card(7, data, game_state))
-        self.cards.append(Card(8, data, game_state))
-        self.cards.append(Card(9, data, game_state))
         self.allow_hovering = True
 
     def draw(self, screen):
@@ -1261,6 +1301,36 @@ class CardContainer(Component):
                         card_description = CardDescription(self.game_state, screen.get_rect(), card)
                         card_description.draw(screen)
 
+    def create_card_rect(self):
+        if len(self.cards) > 0:
+            # First, we scale down the card images to fit within the container
+            card_width = None
+            for card in self.cards:
+                card.image_scaled = scale_surface(card.image, (self.width, self.height * 0.95))
+                card_width = card.image_scaled.get_width()
+
+            # Calculate the total width of the cards
+            total_card_width = len(self.cards) * card_width
+            overlap = 0
+            if total_card_width > self.width:
+                # If cards don't fit side by side, calculate the necessary overlap
+                overlap = (total_card_width - self.width) / (len(self.cards) - 1)
+
+            # Calculate the starting x position for the cards to center them
+            start_x = self.x + (self.width - total_card_width + overlap * (len(self.cards) - 1)) / 2
+
+            # Calculate the y position to center the cards vertically
+            card_height = self.cards[0].image_scaled.get_height()
+            start_y = self.y + (self.height * 0.95 - card_height) / 2
+
+            # Get the mouse cursor position
+            mouse_pos = pygame.mouse.get_pos()
+
+            for i, card in enumerate(self.cards):
+                card_x = start_x + i * (card.image_scaled.get_width() - overlap)
+                card_rect = pygame.Rect(card_x, start_y, card.image_scaled.get_width(), card.image_scaled.get_height())
+                card.rect = card_rect
+
     def update(self, subject):
         if subject is self.game_state and self.game_state.state == 'carousel':
             # The game has entered the 'carousel' state, so disable card hovering.
@@ -1268,6 +1338,49 @@ class CardContainer(Component):
         elif subject is self.game_state and self.game_state.state == 'normal':
             # The game has returned to the 'normal' state, so enable card hovering.
             self.allow_hovering = True
+            self.cards.clear()
+            opponent = 6
+            if self.row_id == -1:
+                for j, element in enumerate(self.game_state.game_state_matrix[0][:120]):
+                    if element > 0:
+                        for i in range(int(element)):
+                            card = Card(j, data, self.game_state)
+                            self.cards.append(card)
+            elif self.row_id == 0:
+                index = 1
+                if self.is_opponent:
+                    index += opponent
+                for j, element in enumerate(self.game_state.game_state_matrix[index][:120]):
+                    if element > 0:
+                        for i in range(int(element)):
+                            card = Card(j, data, self.game_state)
+                            if card.type in ['Unit', 'Hero']:
+                                card.strength_text = int(self.game_state.game_state_matrix[index + 1][j] / int(element))
+                                self.cards.append(card)
+            elif self.row_id == 1:
+                index = 3
+                if self.is_opponent:
+                    index += opponent
+                for j, element in enumerate(self.game_state.game_state_matrix[index][:120]):
+                    if element > 0:
+                        for i in range(int(element)):
+                            card = Card(j, data, self.game_state)
+                            if card.type in ['Unit', 'Hero']:
+                                card.strength_text = int(self.game_state.game_state_matrix[index + 1][j] / int(element))
+                                self.cards.append(card)
+            elif self.row_id == 2:
+                index = 5
+                if self.is_opponent:
+                    index += opponent
+                for j, element in enumerate(self.game_state.game_state_matrix[index][:120]):
+                    if element > 0:
+                        for i in range(int(element)):
+                            card = Card(j, data, self.game_state)
+                            if card.type in ['Unit', 'Hero']:
+                                card.strength_text = int(self.game_state.game_state_matrix[index + 1][j] / int(element))
+                                self.cards.append(card)
+            self.create_card_rect()
+
         elif subject is self.game_state and self.game_state.state == 'dragging':
             # The game has returned to the 'normal' state, so enable card hovering.
             self.allow_hovering = False
@@ -1278,6 +1391,10 @@ class CardContainer(Component):
                 card.hand = self.cards
 
     def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONUP and self.game_state.state == 'dragging':
+            if self.rect.collidepoint(event.pos):
+                self.game_state.parameter_actions.append(
+                    str(self.game_state.parameter._id) + ',' + str(self.row_id) + ',-1')
         for card in self.cards:
             card.parent_container = self
             card.handle_event(event)
@@ -1328,22 +1445,23 @@ class Field(Component):
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.is_hand = is_hand
+        self.is_opponent = is_opponent
         self.field_list = []
         if is_hand:
-            self.card_container = CardContainer(-1, game_state, self, 1, 1, 0, 0)
+            self.card_container = CardContainer(-1, game_state, self, 1, 1, 0, 0, is_opponent)
             self.field_list.append(self.card_container)
         else:
             if is_opponent:
-                self.field_row_siege = FieldRow(game_state, 2, self, 1, 0.32, 0, 0.021)
-                self.field_row_ranged = FieldRow(game_state, 1, self, 1, 0.32, 0, 0.335)
-                self.field_row_melee = FieldRow(game_state, 0, self, 1, 0.32, 0, 0.67)
-                self.field_list.append(self.field_row_melee)
+                self.field_row_siege = FieldRow(game_state, 2, self, 1, 0.32, 0, 0.021, is_opponent)
+                self.field_row_ranged = FieldRow(game_state, 1, self, 1, 0.32, 0, 0.335, is_opponent)
+                self.field_row_melee = FieldRow(game_state, 0, self, 1, 0.32, 0, 0.67, is_opponent)
                 self.field_list.append(self.field_row_ranged)
                 self.field_list.append(self.field_row_siege)
+                self.field_list.append(self.field_row_melee)
             else:
-                self.field_row_melee = FieldRow(game_state, 0, self, 1, 0.32, 0, 0.021)
-                self.field_row_ranged = FieldRow(game_state, 1, self, 1, 0.32, 0, 0.335)
-                self.field_row_siege = FieldRow(game_state, 2, self, 1, 0.32, 0, 0.67)
+                self.field_row_melee = FieldRow(game_state, 0, self, 1, 0.32, 0, 0.021, is_opponent)
+                self.field_row_ranged = FieldRow(game_state, 1, self, 1, 0.32, 0, 0.335, is_opponent)
+                self.field_row_siege = FieldRow(game_state, 2, self, 1, 0.32, 0, 0.67, is_opponent)
                 self.field_list.append(self.field_row_melee)
                 self.field_list.append(self.field_row_ranged)
                 self.field_list.append(self.field_row_siege)
@@ -1372,7 +1490,8 @@ class Field(Component):
                 self.field_list[0].handle_event(event)
         if self.game_state.state != 'carousel':
             for fieldRow in self.field_list:
-                fieldRow.handle_event(event)
+                if event.type == pygame.MOUSEBUTTONUP and fieldRow.rect.collidepoint(event.pos):
+                    fieldRow.handle_event(event)
 
 
 class PanelMiddle(Component):
@@ -1722,7 +1841,7 @@ class Stats(Component):
         self.surface = pygame.Surface((self.width, self.height))
         self.surface.fill((20, 20, 20))
         self.surface.set_alpha(128)
-
+        self.is_opponent = is_opponent
         self.profile_image = self.create_profile_image(is_opponent)
         self.name = self.create_name(is_opponent)
         self.deck_name = self.create_deck_name("Monsters", is_opponent)
@@ -1858,6 +1977,30 @@ class Stats(Component):
         self.gem2.draw(screen)
         self.score_total.draw(screen)
         self.passed.draw(screen)
+
+    def update(self, subject):
+        if subject is self.game_state and self.game_state.state == 'normal':
+            # The game has returned to the 'normal' state, so enable card hovering.
+            if self.is_opponent:
+                if self.game_state.game_state_matrix[0][147] > 0:
+                    self.passed.passed_bool = True
+                self.score_total.set_score(int(self.game_state.game_state_matrix[0][146]), False)
+                if self.game_state.game_state_matrix[0][146] > self.game_state.game_state_matrix[0][145]:
+                    self.score_total.set_score(int(self.game_state.game_state_matrix[0][146]), True)
+                self.hand_count.text = int(self.game_state.game_state_matrix[0][126])
+                if self.game_state.game_state_matrix[0][124] < 2:
+                    self.gem2.change_gem(False)
+                    if self.game_state.game_state_matrix[0][124] < 1:
+                        self.gem1.change_gem(False)
+            else:
+                self.score_total.set_score(int(self.game_state.game_state_matrix[0][145]), False)
+                if self.game_state.game_state_matrix[0][145] > self.game_state.game_state_matrix[0][146]:
+                    self.score_total.set_score(int(self.game_state.game_state_matrix[0][145]), True)
+                self.hand_count.text = int(self.game_state.game_state_matrix[0][125])
+                if self.game_state.game_state_matrix[0][123] < 2:
+                    self.gem2.change_gem(False)
+                if self.game_state.game_state_matrix[0][123] < 1:
+                    self.gem1.change_gem(False)
 
 
 class ProfileImage(Component):
@@ -2168,12 +2311,13 @@ class HandCount(Component):
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)
+        self.text = 0
         self.font_small = ResizableFont('Arial Narrow.ttf', 24)
         self.hand_count_image = pygame.image.load('img/icons/icon_card_count.png')
         self.hand_count_image = scale_surface(self.hand_count_image, (self.width, self.height))
         self.hand_count_op_text_rect = pygame.Rect(self.x + self.hand_count_image.get_width(), self.y,
                                                    self.width - self.hand_count_image.get_width(), self.height)
-        self.hand_count_op_text = fit_text_in_rect("10", self.font_small, (218, 165, 32),
+        self.hand_count_op_text = fit_text_in_rect(str(self.text), self.font_small, (218, 165, 32),
                                                    self.hand_count_op_text_rect)
 
     def draw(self, screen):
@@ -2185,6 +2329,8 @@ class HandCount(Component):
         screen : pygame.Surface
             The screen onto which the hand count should be drawn.
         """
+        self.hand_count_op_text = fit_text_in_rect(str(self.text), self.font_small, (218, 165, 32),
+                                                   self.hand_count_op_text_rect)
         screen.blit(self.hand_count_image, (self.x, self.y))
         draw_centered_text(screen, self.hand_count_op_text, self.hand_count_op_text_rect)
 
@@ -2346,6 +2492,7 @@ class Passed(Component):
                          y_ratio)  # 0% height, 0% width, positioned at 90% of the parent width, 87% of the parent height
         self.font_size = int(parent_rect.height * height_ratio)  # 16% of the stats_op height
         self.font = ResizableFont('Arial Narrow.ttf', self.font_size)
+        self.passed_bool = False
         self.text = self.font.font.render('Passed', True, (210, 180, 140))  # RGB white color
 
     def draw(self, screen):
@@ -2357,7 +2504,8 @@ class Passed(Component):
         screen : pygame.Surface
             The screen onto which the 'Passed' text should be drawn.
         """
-        screen.blit(self.text, (self.x, self.y))
+        if self.passed_bool:
+            screen.blit(self.text, (self.x, self.y))
 
 
 class Weather(Component):
@@ -2411,24 +2559,6 @@ class Weather(Component):
         self.clear = Card(63, data, game_state)
         self.allow_hovering = True
 
-    def add_weather(self, weather_type):
-        """
-        Adds a new weather type to be displayed.
-
-        If the weather_type is 'clear', no action is taken.
-
-        Parameters
-        ----------
-        weather_type : str
-            The type of weather to be added. Options are 'frost', 'fog', 'rain', and 'clear'.
-        """
-        if weather_type == 'frost':
-            self.cards.append(self.frost)
-        elif weather_type == 'fog':
-            self.cards.append(self.fog)
-        elif weather_type == 'rain':
-            self.cards.append(self.rain)
-
     def draw(self, screen):
         """
         Draws the weather images onto the given screen.
@@ -2441,53 +2571,54 @@ class Weather(Component):
             The screen onto which the weather images should be drawn.
         """
         # First, we scale down the card images to fit within the container
-        for card in self.cards:
-            card.image_scaled = scale_surface(card.image, (self.width, self.height))
+        if len(self.cards) > 0:
+            for card in self.cards:
+                card.image_scaled = scale_surface(card.image, (self.width, self.height))
 
-        # Calculate the total width of the cards
-        total_card_width = len(self.cards) * self.cards[0].image_scaled.get_width()
-        overlap = 0
-        if total_card_width > self.width:
-            # If cards don't fit side by side, calculate the necessary overlap
-            overlap = (total_card_width - self.width) / (len(self.cards) - 1)
+            # Calculate the total width of the cards
+            total_card_width = len(self.cards) * self.cards[0].image_scaled.get_width()
+            overlap = 0
+            if total_card_width > self.width:
+                # If cards don't fit side by side, calculate the necessary overlap
+                overlap = (total_card_width - self.width) / (len(self.cards) - 1)
 
-        # Calculate the starting x position for the cards to center them
-        start_x = self.x + (self.width - total_card_width + overlap * (len(self.cards) - 1)) / 2
+            # Calculate the starting x position for the cards to center them
+            start_x = self.x + (self.width - total_card_width + overlap * (len(self.cards) - 1)) / 2
 
-        # Calculate the y position to center the cards vertically
-        card_height = self.cards[0].image_scaled.get_height()
-        start_y = self.y + (self.height - card_height) / 2
+            # Calculate the y position to center the cards vertically
+            card_height = self.cards[0].image_scaled.get_height()
+            start_y = self.y + (self.height - card_height) / 2
 
-        # Get the mouse cursor position
-        mouse_pos = pygame.mouse.get_pos()
+            # Get the mouse cursor position
+            mouse_pos = pygame.mouse.get_pos()
 
-        for i, card in enumerate(self.cards):
-            card_x = start_x + i * (card.image_scaled.get_width() - overlap)
-            card_rect = pygame.Rect(card_x, start_y, card.image_scaled.get_width(), card.image_scaled.get_height())
-            # Check if the mouse is over the card
-            card.hovering = False
-            if card_rect.collidepoint(mouse_pos):
-                card.hovering = True
-                for j, card_2 in enumerate(self.cards):
-                    if card is not card_2:
-                        card_2.hovering = False
-
-        for i, card in enumerate(self.cards):
-            card_x = start_x + i * (card.image_scaled.get_width() - overlap)
-            screen.blit(card.image_scaled, (card_x, start_y))
-
-        # Draw hovered card
-        for i, card in enumerate(self.cards):
-            if card.hovering and self.allow_hovering:
-                hovering_image = card.image.copy()
-                hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
+            for i, card in enumerate(self.cards):
                 card_x = start_x + i * (card.image_scaled.get_width() - overlap)
-                screen.blit(hovering_image, (card_x, start_y))
-                card_preview = CardPreview(self.game_state, screen.get_rect(), card)
-                card_preview.draw(screen)
-                if card.ability != '0':
-                    card_description = CardDescription(self.game_state, screen.get_rect(), card)
-                    card_description.draw(screen)
+                card_rect = pygame.Rect(card_x, start_y, card.image_scaled.get_width(), card.image_scaled.get_height())
+                # Check if the mouse is over the card
+                card.hovering = False
+                if card_rect.collidepoint(mouse_pos):
+                    card.hovering = True
+                    for j, card_2 in enumerate(self.cards):
+                        if card is not card_2:
+                            card_2.hovering = False
+
+            for i, card in enumerate(self.cards):
+                card_x = start_x + i * (card.image_scaled.get_width() - overlap)
+                screen.blit(card.image_scaled, (card_x, start_y))
+
+            # Draw hovered card
+            for i, card in enumerate(self.cards):
+                if card.hovering and self.allow_hovering:
+                    hovering_image = card.image.copy()
+                    hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
+                    card_x = start_x + i * (card.image_scaled.get_width() - overlap)
+                    screen.blit(hovering_image, (card_x, start_y))
+                    card_preview = CardPreview(self.game_state, screen.get_rect(), card)
+                    card_preview.draw(screen)
+                    if card.ability != '0':
+                        card_description = CardDescription(self.game_state, screen.get_rect(), card)
+                        card_description.draw(screen)
 
     def update(self, subject):
         if subject is self.game_state and self.game_state.state == 'carousel':
@@ -2496,6 +2627,13 @@ class Weather(Component):
         elif subject is self.game_state and self.game_state.state == 'normal':
             # The game has returned to the 'normal' state, so enable card hovering.
             self.allow_hovering = True
+            self.cards.clear()
+            if self.game_state.game_state_matrix[0][120] > 0:
+                self.cards.append(self.frost)
+            if self.game_state.game_state_matrix[0][121] > 0:
+                self.cards.append(self.fog)
+            if self.game_state.game_state_matrix[0][122] > 0:
+                self.cards.append(self.rain)
         elif subject is self.game_state and self.game_state.state == 'dragging':
             # The game has returned to the 'normal' state, so enable card hovering.
             self.allow_hovering = False
@@ -2538,17 +2676,6 @@ class Grave(Component):
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)
         self.cards = []
-        self.cards.append(Card(0, data, game_state))
-        self.cards.append(Card(1, data, game_state))
-        self.cards.append(Card(2, data, game_state))
-        self.cards.append(Card(3, data, game_state))
-        self.cards.append(Card(4, data, game_state))
-        self.cards.append(Card(5, data, game_state))
-        self.cards.append(Card(6, data, game_state))
-        self.cards.append(Card(7, data, game_state))
-        self.cards.append(Card(8, data, game_state))
-        self.cards.append(Card(9, data, game_state))
-        self.cards.append(Card(10, data, game_state))
 
     def add_card(self, card):
         """
@@ -2632,12 +2759,6 @@ class Deck(Component):
         self.cards = []
         self.deck_back_image = pygame.image.load(f'img/icons/deck_back_{deck}.jpg')
         self.deck_back_image = scale_surface(self.deck_back_image, (self.width, self.height))
-
-        self.cards.append(Card(10, data, game_state))
-        self.cards.append(Card(11, data, game_state))
-
-        self.cards.append(Card(12, data, game_state))
-        self.cards.append(Card(13, data, game_state))
 
     def draw(self, screen):
         """
@@ -2829,7 +2950,7 @@ class ResizableFont:
         self.font = pygame.font.Font(self.path, self.size)
 
 
-class Game:
+class GameGui:
     def __init__(self, fps=60):
         pygame.init()
         infoObject = pygame.display.Info()
@@ -2839,9 +2960,16 @@ class Game:
         self.screen = pygame.display.set_mode((self.width, self.height), pygame.FULLSCREEN)
         self.clock = pygame.time.Clock()
         self.running = True
+        current_dir = os.getcwd()
+        relative_path = "Game/Gwent.csv"
+        absolute_path = os.path.join(current_dir, relative_path)
+        cards = load_file_game(absolute_path)
+        self.game = Game(cards)
+        self.game_state = GameState()
+        self.game_state.game_state_matrix = self.game.game_state()
 
 
-class MyGame(Game):
+class MyGameGui(GameGui):
     def __init__(self):
         super().__init__()
         self.font_small = ResizableFont('Arial Narrow.ttf', 24)
@@ -2849,9 +2977,8 @@ class MyGame(Game):
         self.background_image = pygame.image.load('img/board.jpg')  # Replace with your image path
         self.background_image = pygame.transform.scale(self.background_image,
                                                        (self.width, self.height))  # Scale the image to fit the screen
-        # Create the game state object
-        self.game_state = GameState()
         self.panel_game = PanelGame(self.game_state, self.screen.get_rect())
+        self.game_state.set_state('normal')
 
     def run(self):
         while self.running:
@@ -2871,8 +2998,29 @@ class MyGame(Game):
             self.panel_game.handle_event(event)
 
     def update(self):
-        pass
-        # self.game_object.update()
+        if len(self.game_state.parameter_actions) > 0:
+            bool_actions, actions = self.game.valid_actions()
+            action = None
+            for a in self.game_state.parameter_actions:
+                if a in actions:
+                    action = self.game.get_index_of_action(a)
+
+            self.game_state.parameter_actions.clear()
+            self.game_state.parameter = None
+            self.game_state.set_state('normal')
+            self.game_state.game_state_matrix = self.game.game_state()
+            if action is not None:
+                result = self.game.step(action)
+                if result > 3:
+                    self.running = False
+                bool_actions, actions = self.game.valid_actions()
+                index = random.randrange(len(actions))
+                result = self.game.step(self.game.get_index_of_action(actions[index]))
+                if result > 3:
+                    self.running = False
+
+                self.game_state.game_state_matrix = self.game.game_state()
+                self.game_state.set_state('normal')
 
     def draw(self):
         self.screen.blit(self.background_image, (0, 0))
@@ -2883,5 +3031,5 @@ class MyGame(Game):
 
 
 if __name__ == '__main__':
-    game = MyGame()
+    game = MyGameGui()
     game.run()

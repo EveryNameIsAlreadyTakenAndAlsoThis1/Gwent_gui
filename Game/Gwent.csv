@@ -1,0 +1,130 @@
+Northern Realms,,,,,,
+Name,Id,Strength,Ability,Type,Placement,Count
+Vernon Roche,0,10,0,Hero,0,1
+John Natalis,1,10,0,Hero,0,1
+Esterad Thyssen,2,10,0,Hero,0,1
+Philippa Eilhart,3,10,0,Hero,1,1
+Thaler,4,1,Spy,Unit,2,1
+Ves,5,5,0,Unit,0,1
+Siegfried of Denesle,6,5,0,Unit,0,1
+Yarpen Zigrin,7,2,0,Unit,0,1
+Sigismund Dijkstra,8,4,Spy,Unit,0,1
+Keira Metz,9,5,0,Unit,1,1
+Si?le de Tansarville,10,5,0,Unit,1,1
+Sabrina Glevissig,11,4,0,Unit,1,1
+Sheldon Skaggs,12,4,0,Unit,1,1
+Dethmold,13,6,0,Unit,1,1
+Prince Stennis,14,5,Spy,Unit,0,1
+Trebuchet,15,6,0,Unit,2,2
+Poor Infantry,16,1,Bond,Unit,0,3
+Dragon Hunter,17,5,Bond,Unit,1,3
+Foot Soldier,18,1,0,Unit,0,2
+Catapult,19,8,Bond,Unit,2,2
+Ballista,20,6,0,Unit,2,2
+Siege Expert,21,1,Morale,Unit,2,3
+Blue Stripes Commando,22,4,Bond,Unit,0,3
+Siege Tower,23,6,0,Unit,2,1
+Banner Medic,24,5,Medic,Unit,2,1
+Scoiatael,,,,,,
+Name,Id,Strength,Ability,Type,Placement,Count
+Eithne,25,10,0,Hero,1,1
+Saskia ,26,10,0,Hero,1,1
+Isengrim Faoiltiarna,27,10,Morale,Unit,0,1
+Iorveth,28,10,0,Hero,1,1
+Dennis Cranmer,29,6,0,Unit,0,1
+Milva,30,10,Morale,Unit,1,1
+Ida Emean,31,6,0,Unit,1,1
+Filavandrel,32,6,Agile,Unit,1,1
+Yaevinn,33,6,Agile,Unit,1,1
+Toruviel,34,2,0,Unit,1,1
+Riordain,35,1,0,Unit,1,1
+Ciaran aep Easnillien,36,3,Agile,Unit,1,1
+Barclay Els,37,6,Agile,Unit,1,1
+Havekar Healer,38,0,Medic,Unit,1,3
+Vrihedd Brigade Veteran,39,5,Agile,Unit,1,2
+Dol Blathanna Archer,40,6,Agile,Unit,1,1
+Dol Blathanna Scout,41,6,Agile,Unit,1,2
+Dwarf Skirmisher,42,3,Muster,Unit,0,3
+Mahakaman Defender,43,5,0,Unit,0,5
+Elven Skirmisher,44,2,Muster,Unit,0,3
+Vrihedd Cadet,45,4,0,Unit,1,1
+Havekar Smuggler,46,5,Muster,Unit,0,2
+Neutral,,,,,,
+Name,Id,Strength,Ability,Type,Placement,Count
+Geralt of Rivia,47,15,0,Hero,0,1
+Cirilla Fiona Elen Rianno,48,15,0,Hero,0,1
+Vesemir,49,6,0,Unit,0,1
+Yennefer of Vengerberg,50,7,Medic,Hero,1,1
+Triss Merigold,51,7,0,Hero,0,1
+Dandelion,52,7,Morale,Unit,0,1
+Zoltan Chivay,53,5,0,Unit,0,1
+Emiel Regis Rohellec Terzieff,54,5,0,Unit,0,1
+Villentretenmerth,55,7,Scorch,Unit,0,1
+Avallach,56,0,Spy,Hero,0,1
+Decoy,57,0,Decoy,Decoy,4,3
+Commanders Horn,58,0,Morale,Morale,4,3
+Scorch,59,0,Scorch,Scorch,4,3
+Biting Frost,60,0,Weather,Weather,0,3
+Impenetrable Fog,61,0,Weather,Weather,1,3
+Torrential Rain,62,0,Weather,Weather,2,3
+Clear Weather,63,0,Weather,Weather,4,3
+Nilfgaard,,,,,,
+Name,Id,Strength,Ability,Type,Placement,Count
+Letho of Gulet,64,10,0,Hero,0,1
+Menno Coehoorn,65,10,Medic,Hero,0,1
+Morvran Voorhis,66,10,0,Hero,2,1
+Tibor Eggebracht,67,10,0,Hero,1,1
+Albrich,68,2,0,Unit,1,1
+Assire var Anahid,69,6,0,Unit,1,1
+Cynthia,70,4,0,Unit,1,1
+Fringilla Vigo,71,6,0,Unit,1,1
+Morteisen,72,3,0,Unit,0,1
+Rainfarn,73,4,0,Unit,0,1
+Renuald aep Matsen,74,5,0,Unit,1,1
+Rotten Mangonel,75,3,0,Unit,2,1
+Shilard Fitz Oesterlen,76,7,Spy,Unit,0,1
+Stefan Skellen,77,9,Spy,Unit,0,1
+Sweers,78,2,0,Unit,1,1
+Vanhemar,79,4,0,Unit,1,1
+Vattier de Rideaux,80,0,Spy,Unit,0,1
+Vreemde,81,2,0,Unit,0,1
+Cahir Mawr Dyffryn aep Ceallach,82,6,0,Unit,0,1
+Puttkammer,83,3,0,Unit,1,1
+Etolian Auxiliary Archers,84,1,Medic,Unit,1,2
+Black Infantry Archer,85,10,0,Unit,1,1
+Siege Technican,86,0,Medic,Unit,2,1
+Heavy Zerrikanian Fire Scorpion,87,10,0,Unit,2,2
+Impera Brigade,88,3,Bond,Unit,0,4
+Nausicaa Cavalry Brigade,89,2,0,Unit,0,3
+Siege Engineer,90,6,0,Unit,2,1
+Young Emissary,91,5,Bond,Unit,0,2
+Monsters,,,,,,
+Name,Id,Strength,Ability,Type,Placement,Count
+Draug,92,10,0,Hero,0,1
+Kayran,93,18,Morale,Hero,0,1
+Imlerith,94,10,0,Hero,0,1
+Leshen,95,10,,Hero,1,1
+Forktail,96,5,0,Unit,0,1
+Earth Elemental,97,6,0,Unit,2,1
+Fiend,98,6,0,Unit,0,1
+Plague Maiden,99,5,0,Unit,0,1
+Griffin,100,5,0,Unit,0,1
+Werewolf,101,5,0,Unit,0,1
+Botchling,102,4,0,Unit,0,1
+Frightener,103,5,0,Unit,0,1
+Ice Giant,104,5,0,Unit,2,1
+Endrega,105,2,0,Unit,1,1
+Harpy,106,2,0,Unit,0,1
+Cockatrice,107,2,0,Unit,1,1
+Gargoyle,108,2,0,Unit,1,1
+Celaeno Harpy,109,2,0,Unit,0,1
+Grave Hag,110,5,0,Unit,1,1
+Fire Elemental,111,6,0,Unit,2,1
+Foglet,112,2,0,Unit,0,1
+Wyvern,113,2,0,Unit,1,1
+Arachas Behemoth,114,6,Muster,Unit,2,2
+Arachas,115,4,Muster,Unit,0,2
+Nekker,116,2,Muster,Unit,0,4
+Vampire,117,4,Muster,Unit,0,5
+Ghoul,118,1,Muster,Unit,0,2
+Crone,119,6,Muster,Unit,0,3
