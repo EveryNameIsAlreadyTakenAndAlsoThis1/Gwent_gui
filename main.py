@@ -225,6 +225,14 @@ def card_strength_text(screen, card, card_x, start_y, image):
     draw_centered_text(screen, text, text_rect)
 
 
+def check_valid_action(card_board, card_dragged, game_state):
+    if card_board is None or card_dragged is None:
+        pass
+    else:
+        game_state.parameter_actions.append(
+            str(card_dragged._id) + ',' + str(card_board.parent_container.row_id) + ',' + str(card_board._id))
+
+
 data = load_file('Gwent.csv')
 
 
@@ -309,6 +317,7 @@ class GameState(Subject):
         self.parameter = None
         self.parameter_actions = []
         self.game_state_matrix = None
+        self.passed = False
 
     def set_state(self, new_state):
         """
@@ -519,14 +528,6 @@ class Card:
             if self.is_dragging:
                 self.rect.x = event.pos[0] - self.mouse_offset[0]
                 self.rect.y = event.pos[1] - self.mouse_offset[1]
-
-
-def check_valid_action(card_board, card_dragged, game_state):
-    if card_board is None or card_dragged is None:
-        pass
-    else:
-        game_state.parameter_actions.append(
-            str(card_dragged._id) + ',' + str(card_board.parent_container.row_id) + ',' + str(card_board._id))
 
 
 class Component(Observer):
@@ -1395,6 +1396,8 @@ class CardContainer(Component):
             if self.rect.collidepoint(event.pos):
                 self.game_state.parameter_actions.append(
                     str(self.game_state.parameter._id) + ',' + str(self.row_id) + ',-1')
+                self.game_state.parameter_actions.append(
+                    str(self.game_state.parameter._id) + ',' + '4' + ',-1')
         for card in self.cards:
             card.parent_container = self
             card.handle_event(event)
@@ -1984,23 +1987,33 @@ class Stats(Component):
             if self.is_opponent:
                 if self.game_state.game_state_matrix[0][147] > 0:
                     self.passed.passed_bool = True
+                else:
+                    self.passed.passed_bool = False
                 self.score_total.set_score(int(self.game_state.game_state_matrix[0][146]), False)
                 if self.game_state.game_state_matrix[0][146] > self.game_state.game_state_matrix[0][145]:
                     self.score_total.set_score(int(self.game_state.game_state_matrix[0][146]), True)
                 self.hand_count.text = int(self.game_state.game_state_matrix[0][126])
                 if self.game_state.game_state_matrix[0][124] < 2:
-                    self.gem2.change_gem(False)
+                    self.gem2.on = False
                     if self.game_state.game_state_matrix[0][124] < 1:
-                        self.gem1.change_gem(False)
+                        self.gem1.on = False
+                    else:
+                        self.gem1.on = True
+                else:
+                    self.gem2.on = True
             else:
                 self.score_total.set_score(int(self.game_state.game_state_matrix[0][145]), False)
                 if self.game_state.game_state_matrix[0][145] > self.game_state.game_state_matrix[0][146]:
                     self.score_total.set_score(int(self.game_state.game_state_matrix[0][145]), True)
                 self.hand_count.text = int(self.game_state.game_state_matrix[0][125])
                 if self.game_state.game_state_matrix[0][123] < 2:
-                    self.gem2.change_gem(False)
-                if self.game_state.game_state_matrix[0][123] < 1:
-                    self.gem1.change_gem(False)
+                    self.gem2.on = False
+                    if self.game_state.game_state_matrix[0][123] < 1:
+                        self.gem1.on = False
+                    else:
+                        self.gem1.on = True
+                else:
+                    self.gem2.on = True
 
 
 class ProfileImage(Component):
@@ -2239,9 +2252,10 @@ class Gem(Component):
         self.gem_on_image = pygame.image.load('img/icons/icon_gem_on.png')
         self.gem_on_image = pygame.transform.scale(self.gem_on_image, (self.width, self.height))
         self.gem_on_image_off = pygame.image.load('img/icons/icon_gem_off.png')
-        self.gem_on_image_off = pygame.transform.scale(self.gem_on_image, (self.width, self.height))
+        self.gem_on_image_off = pygame.transform.scale(self.gem_on_image_off, (self.width, self.height))
         self.gem_on_image_on = pygame.image.load('img/icons/icon_gem_on.png')
         self.gem_on_image_on = pygame.transform.scale(self.gem_on_image, (self.width, self.height))
+        self.on = True
 
     def draw(self, screen):
         """
@@ -2252,21 +2266,10 @@ class Gem(Component):
         screen : pygame.Surface
             The screen onto which the gem should be drawn.
         """
-        screen.blit(self.gem_on_image, (self.x, self.y))
-
-    def change_gem(self, on):
-        """
-        Changes the state of the gem.
-
-        Parameters
-        ----------
-        on : bool
-            The state of the gem, True if the gem is in its "on" state, False otherwise.
-        """
-        if on:
-            self.gem_on_image = self.gem_on_image_on
+        if self.on:
+            screen.blit(self.gem_on_image, (self.x, self.y))
         else:
-            self.gem_on_image = self.gem_on_image_off
+            screen.blit(self.gem_on_image_off, (self.x, self.y))
 
 
 class HandCount(Component):
@@ -2995,6 +2998,10 @@ class MyGameGui(GameGui):
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE and self.game_state.state == 'normal':
                     self.running = False
+                elif event.key == pygame.K_SPACE and self.game_state.state == 'normal':
+                    self.game_state.parameter_actions.append('-1')
+                    self.game_state.passed = True
+
             self.panel_game.handle_event(event)
 
     def update(self):
@@ -3007,20 +3014,41 @@ class MyGameGui(GameGui):
 
             self.game_state.parameter_actions.clear()
             self.game_state.parameter = None
-            self.game_state.set_state('normal')
+
             self.game_state.game_state_matrix = self.game.game_state()
+            self.game_state.set_state('normal')
             if action is not None:
+                print(action)
                 result = self.game.step(action)
-                if result > 3:
-                    self.running = False
-                bool_actions, actions = self.game.valid_actions()
-                index = random.randrange(len(actions))
-                result = self.game.step(self.game.get_index_of_action(actions[index]))
+                if self.game.turn == 0:
+                    self.game_state.game_state_matrix = self.game.game_state()
+                    self.game_state.set_state('normal')
+
                 if result > 3:
                     self.running = False
 
-                self.game_state.game_state_matrix = self.game.game_state()
-                self.game_state.set_state('normal')
+            if self.game.turn == 1:
+                self.step_by_ai()
+                if self.game.turn == 0:
+                    self.game_state.game_state_matrix = self.game.game_state()
+                    self.game_state.set_state('normal')
+
+    def step_by_ai(self):
+        bool_actions, actions = self.game.valid_actions()
+        index = random.randrange(len(actions))
+        result = self.game.step(self.game.get_index_of_action(actions[index]))
+        if result > 3:
+            self.running = False
+        if self.game_state.passed:
+            while actions[index] != '-1':
+                bool_actions, actions = self.game.valid_actions()
+                index = random.randrange(len(actions))
+                result = self.game.step(self.game.get_index_of_action(actions[index]))
+            self.game_state.passed = False
+            if self.game.turn == 1:
+                self.step_by_ai()
+        if result > 3:
+            self.running = False
 
     def draw(self):
         self.screen.blit(self.background_image, (0, 0))

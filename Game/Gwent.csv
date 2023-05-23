@@ -28,7 +28,7 @@ Banner Medic,24,5,Medic,Unit,2,1
 Scoiatael,,,,,,
 Name,Id,Strength,Ability,Type,Placement,Count
 Eithne,25,10,0,Hero,1,1
-Saskia ,26,10,0,Hero,1,1
+Saskiaï¿½,26,10,0,Hero,1,1
 Isengrim Faoiltiarna,27,10,Morale,Unit,0,1
 Iorveth,28,10,0,Hero,1,1
 Dennis Cranmer,29,6,0,Unit,0,1
@@ -86,7 +86,7 @@ Shilard Fitz Oesterlen,76,7,Spy,Unit,0,1
 Stefan Skellen,77,9,Spy,Unit,0,1
 Sweers,78,2,0,Unit,1,1
 Vanhemar,79,4,0,Unit,1,1
-Vattier de Rideaux,80,0,Spy,Unit,0,1
+Vattier de Rideaux,80,4,Spy,Unit,0,1
 Vreemde,81,2,0,Unit,0,1
 Cahir Mawr Dyffryn aep Ceallach,82,6,0,Unit,0,1
 Puttkammer,83,3,0,Unit,1,1
