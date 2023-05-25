@@ -317,6 +317,7 @@ class GameState(Subject):
         self.parameter = None
         self.parameter_actions = []
         self.game_state_matrix = None
+        self.game_state_matrix_opponent = None
         self.passed = False
 
     def set_state(self, new_state):
@@ -1356,7 +1357,8 @@ class CardContainer(Component):
                         for i in range(int(element)):
                             card = Card(j, data, self.game_state)
                             if card.type in ['Unit', 'Hero']:
-                                card.strength_text = int(self.game_state.game_state_matrix[index + 1][j] / int(element))
+                                card.strength_text = int(
+                                    self.game_state.game_state_matrix[index + 1][j] // int(element))
                                 self.cards.append(card)
             elif self.row_id == 1:
                 index = 3
@@ -1367,7 +1369,8 @@ class CardContainer(Component):
                         for i in range(int(element)):
                             card = Card(j, data, self.game_state)
                             if card.type in ['Unit', 'Hero']:
-                                card.strength_text = int(self.game_state.game_state_matrix[index + 1][j] / int(element))
+                                card.strength_text = int(
+                                    self.game_state.game_state_matrix[index + 1][j] // int(element))
                                 self.cards.append(card)
             elif self.row_id == 2:
                 index = 5
@@ -1378,7 +1381,8 @@ class CardContainer(Component):
                         for i in range(int(element)):
                             card = Card(j, data, self.game_state)
                             if card.type in ['Unit', 'Hero']:
-                                card.strength_text = int(self.game_state.game_state_matrix[index + 1][j] / int(element))
+                                card.strength_text = int(
+                                    self.game_state.game_state_matrix[index + 1][j] // int(element))
                                 self.cards.append(card)
             self.create_card_rect()
 
@@ -1573,10 +1577,10 @@ class PanelRight(Component):
     def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.component_list = []
-        self.grave_op = Grave(game_state, self, 0.28, 0.14, 0.065, 0.065)
-        self.deck_op = Deck(game_state, self, 0.28, 0.14, 0.51, 0.065, 'monsters')
-        self.grave_me = Grave(game_state, self, 0.28, 0.14, 0.065, 0.765)
-        self.deck_me = Deck(game_state, self, 0.28, 0.14, 0.51, 0.765, 'monsters')
+        self.grave_op = Grave(game_state, self, 0.28, 0.14, 0.065, 0.065, True)
+        self.deck_op = Deck(game_state, self, 0.28, 0.14, 0.51, 0.065, 'monsters', True)
+        self.grave_me = Grave(game_state, self, 0.28, 0.14, 0.065, 0.765, False)
+        self.deck_me = Deck(game_state, self, 0.28, 0.14, 0.51, 0.765, 'monsters', False)
         self.component_list.append(self.grave_op)
         self.component_list.append(self.deck_op)
         self.component_list.append(self.grave_me)
@@ -2659,7 +2663,7 @@ class Grave(Component):
         Draws the Grave onto the given screen.
     """
 
-    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, is_opponent):
         """
         Initializes a new instance of Grave.
 
@@ -2679,17 +2683,7 @@ class Grave(Component):
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)
         self.cards = []
-
-    def add_card(self, card):
-        """
-        Adds a card to the Grave.
-
-        Parameters
-        ----------
-        card : Card
-            The card to be added to the Grave.
-        """
-        self.cards.append(card)
+        self.is_opponent = is_opponent
 
     def draw(self, screen):
         """
@@ -2723,6 +2717,18 @@ class Grave(Component):
             self.game_state.set_state('carousel')
             self.game_state.parameter = self.cards
 
+    def update(self, subject):
+        index = 13
+        if self.is_opponent:
+            index = 14
+        if subject is self.game_state and self.game_state.state == 'normal':
+            self.cards.clear()
+            for j, element in enumerate(self.game_state.game_state_matrix[index][:120]):
+                if element > 0:
+                    for i in range(int(element)):
+                        card = Card(j, data, self.game_state)
+                        self.cards.append(card)
+
 
 class Deck(Component):
     """
@@ -2739,7 +2745,7 @@ class Deck(Component):
         Draws the deck of cards onto the given screen.
     """
 
-    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, deck):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio, deck, is_opponent):
         """
         Initializes a new instance of Deck.
 
@@ -2760,6 +2766,7 @@ class Deck(Component):
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.cards = []
+        self.is_opponent = is_opponent
         self.deck_back_image = pygame.image.load(f'img/icons/deck_back_{deck}.jpg')
         self.deck_back_image = scale_surface(self.deck_back_image, (self.width, self.height))
 
@@ -2782,10 +2789,19 @@ class Deck(Component):
         center_x = self.x + self.width / 2
         center_y = self.y + self.height / 2
 
-        for i in range(len(self.cards) - 1, -1, -1):
-            card_x = center_x - card_image_scaled.get_width() / 2 - i
-            card_y = center_y - card_image_scaled.get_height() / 2 - i
-            screen.blit(card_image_scaled, (card_x, card_y))
+        if len(self.cards) > 0:
+            for i, card in enumerate(self.cards):
+                card_image = scale_surface(card.image, (self.width * 0.9, self.height * 0.9))
+                x_position = self.x - i + (self.width - card_image.get_width()) // 2
+                y_position = self.y - i + (self.height - card_image.get_height()) // 2
+                center_x = x_position + card_image.get_width() / 2
+                center_y = y_position + card_image.get_height() / 2
+
+                # Ensuring the card does not go beyond the container's dimensions
+                x_position = max(x_position, 0)
+                y_position = max(y_position, 0)
+
+                screen.blit(card_image_scaled, (x_position, y_position))
 
         # Draw card count rectangle
         card_count_rect = pygame.Rect(center_x - 25, center_y - 10, 50, 20)
@@ -2803,9 +2819,22 @@ class Deck(Component):
     def handle_event(self, event):
         # Get the mouse cursor position
         mouse_pos = pygame.mouse.get_pos()
-        if event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(mouse_pos):
+        if event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(mouse_pos) and not self.is_opponent:
             self.game_state.set_state('carousel')
             self.game_state.parameter = self.cards
+
+    def update(self, subject):
+        index = 15
+        matrix = self.game_state.game_state_matrix
+        if self.is_opponent:
+            matrix = self.game_state.game_state_matrix_opponent
+        if subject is self.game_state and self.game_state.state == 'normal' and matrix is not None:
+            self.cards.clear()
+            for j, element in enumerate(matrix[index][:120]):
+                if element > 0:
+                    for i in range(int(element)):
+                        card = Card(j, data, self.game_state)
+                        self.cards.append(card)
 
 
 class Carousel(Component):
@@ -2841,38 +2870,42 @@ class Carousel(Component):
         screen : pygame.Surface
             The screen onto which the carousel should be drawn.
         """
-        # Calculate positions for all cards
-        center_x = self.width / 2
-        center_y = self.height / 2
+        if self.current_index > len(self.cards):
+            self.current_index = 0
+        if len(self.cards) > 0:
+            # Calculate positions for all cards
+            center_x = self.width / 2
+            center_y = self.height / 2
 
-        # Define the spacing between the cards
-        spacing = 10
+            # Define the spacing between the cards
+            spacing = 10
 
-        # First calculate and store the position of the enlarged card
-        enlarged_card = self.cards[self.current_index]
-        enlarged_card.image_scaled = scale_surface(enlarged_card.large_image,
-                                                   (self.width / 6 * 1.2, self.height * 1.2))  # Bigger card
-        enlarged_card_x = center_x - enlarged_card.image_scaled.get_width() / 2
-        enlarged_card_y = center_y - enlarged_card.image_scaled.get_height() / 2
+            # First calculate and store the position of the enlarged card
+            enlarged_card = self.cards[self.current_index]
+            enlarged_card.image_scaled = scale_surface(enlarged_card.large_image,
+                                                       (self.width / 6 * 1.2, self.height * 1.2))  # Bigger card
+            enlarged_card_x = center_x - enlarged_card.image_scaled.get_width() / 2
+            enlarged_card_y = center_y - enlarged_card.image_scaled.get_height() / 2
 
-        for i, card in enumerate(self.cards):
-            if i == self.current_index:
-                # Draw the enlarged card at the stored position
-                screen.blit(enlarged_card.image_scaled, (enlarged_card_x, enlarged_card_y))
-            else:
-                card.image_scaled = scale_surface(card.large_image, (self.width / 6, self.height))  # Regular size card
-                multiplier = abs(i - self.current_index)
-                if i < self.current_index:  # Card is to the left of the current card
-                    # Calculate position based on the enlarged card's position
-                    x = enlarged_card_x - multiplier * (card.image_scaled.get_width() + spacing)
-                    y = center_y - card.image_scaled.get_height() / 2
-                    screen.blit(card.image_scaled, (x, y))
-                else:  # Card is to the right of the current card
-                    # Calculate position based on the enlarged card's position and add a space width
-                    x = enlarged_card_x + enlarged_card.image_scaled.get_width() + spacing + (multiplier - 1) * (
-                            card.image_scaled.get_width() + spacing)
-                    y = center_y - card.image_scaled.get_height() / 2
-                    screen.blit(card.image_scaled, (x, y))
+            for i, card in enumerate(self.cards):
+                if i == self.current_index:
+                    # Draw the enlarged card at the stored position
+                    screen.blit(enlarged_card.image_scaled, (enlarged_card_x, enlarged_card_y))
+                else:
+                    card.image_scaled = scale_surface(card.large_image,
+                                                      (self.width / 6, self.height))  # Regular size card
+                    multiplier = abs(i - self.current_index)
+                    if i < self.current_index:  # Card is to the left of the current card
+                        # Calculate position based on the enlarged card's position
+                        x = enlarged_card_x - multiplier * (card.image_scaled.get_width() + spacing)
+                        y = center_y - card.image_scaled.get_height() / 2
+                        screen.blit(card.image_scaled, (x, y))
+                    else:  # Card is to the right of the current card
+                        # Calculate position based on the enlarged card's position and add a space width
+                        x = enlarged_card_x + enlarged_card.image_scaled.get_width() + spacing + (multiplier - 1) * (
+                                card.image_scaled.get_width() + spacing)
+                        y = center_y - card.image_scaled.get_height() / 2
+                        screen.blit(card.image_scaled, (x, y))
 
     def next_card(self):
         """
@@ -3017,7 +3050,7 @@ class MyGameGui(GameGui):
 
             self.game_state.game_state_matrix = self.game.game_state()
             self.game_state.set_state('normal')
-            if action is not None:
+            if action is not None and self.game.turn == 0:
                 print(action)
                 result = self.game.step(action)
                 if self.game.turn == 0:
@@ -3028,6 +3061,7 @@ class MyGameGui(GameGui):
                     self.running = False
 
             if self.game.turn == 1:
+                self.game_state.game_state_matrix_opponent = self.game.game_state()
                 self.step_by_ai()
                 if self.game.turn == 0:
                     self.game_state.game_state_matrix = self.game.game_state()
@@ -3036,16 +3070,19 @@ class MyGameGui(GameGui):
     def step_by_ai(self):
         bool_actions, actions = self.game.valid_actions()
         index = random.randrange(len(actions))
+        print('AI action:' + str(actions[index]))
         result = self.game.step(self.game.get_index_of_action(actions[index]))
         if result > 3:
             self.running = False
         if self.game_state.passed:
-            while actions[index] != '-1':
+            while self.game.turn == 1 and result < 3:
                 bool_actions, actions = self.game.valid_actions()
                 index = random.randrange(len(actions))
                 result = self.game.step(self.game.get_index_of_action(actions[index]))
+                print('AI action:' + str(actions[index]))
+
             self.game_state.passed = False
-            if self.game.turn == 1:
+            if self.game.turn == 1 and result < 3:
                 self.step_by_ai()
         if result > 3:
             self.running = False

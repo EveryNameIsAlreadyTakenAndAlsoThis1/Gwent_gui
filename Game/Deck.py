@@ -34,8 +34,9 @@ class Deck:
             return None
         else:
             index = random.randrange(len(self.cards))
-            self.cards_count[index] -= 1
-            return self.cards.pop(index)
+            card = self.cards.pop(index)
+            self.cards_count[card.id] -= 1
+            return card
 
     def add(self, card):
         """
