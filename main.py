@@ -1498,7 +1498,13 @@ class Field(Component):
         if self.game_state.state != 'carousel':
             for fieldRow in self.field_list:
                 if event.type == pygame.MOUSEBUTTONUP and fieldRow.rect.collidepoint(event.pos):
-                    fieldRow.handle_event(event)
+                    if self.game_state.parameter is not None and self.game_state.parameter.ability == 'Medic':
+                        self.game_state.parameter_actions.append(
+                            str(self.game_state.parameter._id) + ',' + str(fieldRow.row_id) + ',' + '-1')
+                        self.game_state.parameter = None
+                        self.game_state.set_state('carousel')
+                    else:
+                        fieldRow.handle_event(event)
 
 
 class PanelMiddle(Component):
@@ -1666,7 +1672,10 @@ class PanelGame(Component):
             if self.game_state.state == 'dragging':
                 self.game_state.parameter.draw(screen)
         if self.carousal_active:
-            self.panel_carousel.cards = self.game_state.parameter
+            if self.game_state.parameter is None:
+                self.panel_carousel.cards = self.panel_right.grave_me.cards
+            else:
+                self.panel_carousel.cards = self.game_state.parameter
             self.panel_carousel.draw(screen)
 
     def handle_event(self, event):
@@ -2906,6 +2915,8 @@ class Carousel(Component):
                                 card.image_scaled.get_width() + spacing)
                         y = center_y - card.image_scaled.get_height() / 2
                         screen.blit(card.image_scaled, (x, y))
+        else:
+            self.game_state.set_state('normal')
 
     def next_card(self):
         """
@@ -2937,6 +2948,14 @@ class Carousel(Component):
             # If the click was on the left side of the current card, move to the previous card
             elif event.pos[0] < self.x + self.width / 2:
                 self.previous_card()
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN:  # enter
+                last_action = self.game_state.parameter_actions[-1]
+                split = last_action.split(',')
+                new_action = ','.join(split[:2])
+                new_action += ',' + str(self.cards[self.current_index]._id)
+                self.game_state.parameter_actions.append(new_action)
+                self.game_state.set_state('normal')
 
 
 class ResizableFont:
@@ -3038,7 +3057,7 @@ class MyGameGui(GameGui):
             self.panel_game.handle_event(event)
 
     def update(self):
-        if len(self.game_state.parameter_actions) > 0:
+        if len(self.game_state.parameter_actions) > 0 and self.game_state.state == 'normal':
             bool_actions, actions = self.game.valid_actions()
             action = None
             for a in self.game_state.parameter_actions:
