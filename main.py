@@ -70,7 +70,7 @@ def load_file(file_path):
             type_icon = pygame.image.load('img/icons/power_scorch.png')
 
         ability_icon = None
-        if ability != '0' and card_type in ['Unit','Hero']:
+        if ability != '0' and card_type in ['Unit', 'Hero']:
             ability_icon = pygame.image.load(f'img/icons/card_ability_{ability.lower()}.png')
 
         result[int(_id)] = ({
@@ -240,9 +240,9 @@ def card_strength_text(screen, card, card_x, start_y, image):
     elif card.type == 'Unit' and card.strength == card.strength_text:
         text_color = (0, 0, 0)
     elif card.type == 'Unit' and card.strength < card.strength_text:
-        text_color = (0, 255, 0)
+        text_color = (0, 100, 0)
     elif card.type == 'Unit' and card.strength > card.strength_text:
-        text_color = (255, 0, 0)
+        text_color = (106, 28, 15)
     text_rect = pygame.Rect(card_x, start_y, image.get_width() / 2.7,
                             image.get_height() / 4)
     text = font_small.font.render(str(card.strength_text), True, text_color)
@@ -3039,6 +3039,7 @@ class GameGui:
             "screen_blit": [],
             "panel_game_draw": [],
             "pygame_display_flip": [],
+            "update action": []
         }
 
 
@@ -3088,6 +3089,7 @@ class MyGameGui(GameGui):
 
     def update(self):
         if len(self.game_state.parameter_actions) > 0 and self.game_state.state == 'normal':
+            start_time = time.time()
             bool_actions, actions = self.game.valid_actions()
             action = None
             for a in self.game_state.parameter_actions:
@@ -3109,12 +3111,19 @@ class MyGameGui(GameGui):
                 if result > 3:
                     self.running = False
 
+            end_time = time.time()
+            self.timing_data["update action"].append(end_time - start_time)
+
         if self.game.turn == 1:
+            start_time = time.time()
             self.game_state.game_state_matrix_opponent = self.game.game_state()
             self.step_by_ai()
             if self.game.turn == 0:
                 self.game_state.game_state_matrix = self.game.game_state()
                 self.game_state.set_state('normal')
+
+            end_time = time.time()
+            self.timing_data["update action"].append(end_time - start_time)
 
     def step_by_ai(self):
         bool_actions, actions = self.game.valid_actions()
@@ -3142,8 +3151,12 @@ class MyGameGui(GameGui):
 
     def print_average_times(self):
         for function, times in self.timing_data.items():
-            average_time = sum(times) / len(times) if times else 0
-            print(f"Average time for {function}: {average_time:.6f} seconds")
+            if times:
+                average_time = sum(times) / len(times)
+                max_time = max(times)
+                print(f"Average time for {function}: {average_time:.6f} seconds, Maximum time: {max_time:.6f} seconds")
+            else:
+                print(f"No timing data for {function}")
 
 
 if __name__ == '__main__':
