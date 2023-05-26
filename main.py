@@ -53,6 +53,26 @@ def load_file(file_path):
 
         name, _id, strength, ability, card_type, placement, count, image, asd = line.split(',')
 
+        type_icon = None
+        if card_type == "Hero":
+            type_icon = pygame.image.load('img/icons/power_hero2.png')
+        elif card_type == "Unit":
+            type_icon = pygame.image.load('img/icons/power_normal3.png')
+        elif card_type == "Weather":
+            weather_icons = ['img/icons/power_frost.png', 'img/icons/power_fog.png', 'img/icons/power_rain.png',
+                             '', 'img/icons/power_clear.png']
+            type_icon = pygame.image.load(weather_icons[int(placement)])
+        elif card_type == "Decoy":
+            type_icon = pygame.image.load('img/icons/power_decoy.png')
+        elif card_type == "Morale":
+            type_icon = pygame.image.load('img/icons/power_horn.png')
+        elif card_type == "Scorch":
+            type_icon = pygame.image.load('img/icons/power_scorch.png')
+
+        ability_icon = None
+        if ability != '0' and card_type in ['Unit','Hero']:
+            ability_icon = pygame.image.load(f'img/icons/card_ability_{ability.lower()}.png')
+
         result[int(_id)] = ({
             'Name': name,
             'Id': int(_id),
@@ -62,7 +82,11 @@ def load_file(file_path):
             'Placement': int(placement),
             'Count': int(count),
             'Faction': current_group,
-            'Image': image
+            'Image': image,
+            'Image_sm': pygame.image.load(f'img/sm/{image}'),
+            'Image_lg': pygame.image.load(f'img/lg/{image}'),
+            'Type_icon': type_icon,
+            'Ability_icon': ability_icon
         })
 
     return result
@@ -431,8 +455,8 @@ class Card:
         self.parent_container = None
 
         # Initialize the large and small images
-        self.large_image = pygame.image.load(f'img/lg/{self.image}')
-        self.small_image = pygame.image.load(f'img/sm/{self.image}')
+        self.large_image = self.data['Image_lg']
+        self.small_image = self.data['Image_sm']
 
         # Create the image attribute by adding smaller images to the small image
         self.image = self.small_image.copy()
@@ -440,21 +464,7 @@ class Card:
         self.strength_text = None
 
         # Add the appropriate icon to the top left corner of the image
-        type_icon = None
-        if self.type == "Hero":
-            type_icon = pygame.image.load('img/icons/power_hero2.png')
-        elif self.type == "Unit":
-            type_icon = pygame.image.load('img/icons/power_normal3.png')
-        elif self.type == "Weather":
-            weather_icons = ['img/icons/power_frost.png', 'img/icons/power_fog.png', 'img/icons/power_rain.png',
-                             '', 'img/icons/power_clear.png']
-            type_icon = pygame.image.load(weather_icons[self.placement])
-        elif self.type == "Decoy":
-            type_icon = pygame.image.load('img/icons/power_decoy.png')
-        elif self.type == "Morale":
-            type_icon = pygame.image.load('img/icons/power_horn.png')
-        elif self.type == "Scorch":
-            type_icon = pygame.image.load('img/icons/power_scorch.png')
+        type_icon = self.data['Type_icon']
 
         if type_icon is not None:
             self.image.blit(type_icon, (0, 0))  # top left corner
@@ -470,7 +480,7 @@ class Card:
 
         # If card type is Hero or Unit, add ability icon to the bottom right, left to previous icon
         if self.type in ["Hero", "Unit"] and self.ability in ["Spy", "Bond", "Morale", "Medic", "Muster"]:
-            ability_icon = pygame.image.load(f'img/icons/card_ability_{self.ability.lower()}.png')
+            ability_icon = self.data['Ability_icon']
             self.image.blit(ability_icon, (
                 self.small_image.get_width() - placement_icon.get_width() - ability_icon.get_width(),
                 self.small_image.get_height() - ability_icon.get_height()))  # left to the previous icon
@@ -3022,6 +3032,14 @@ class GameGui:
         self.game = Game(cards)
         self.game_state = GameState()
         self.game_state.game_state_matrix = self.game.game_state()
+        self.timing_data = {
+            "handle_events": [],
+            "update": [],
+            "draw": [],
+            "screen_blit": [],
+            "panel_game_draw": [],
+            "pygame_display_flip": [],
+        }
 
 
 class MyGameGui(GameGui):
@@ -3038,9 +3056,21 @@ class MyGameGui(GameGui):
     def run(self):
         while self.running:
             self.clock.tick(self.fps)
+            start_time = time.time()
             self.handle_events()
+            end_time = time.time()
+            self.timing_data["handle_events"].append(end_time - start_time)
+
+            start_time = time.time()
             self.update()
+            end_time = time.time()
+            self.timing_data["update"].append(end_time - start_time)
+
+            start_time = time.time()
             self.draw()
+            end_time = time.time()
+            self.timing_data["draw"].append(end_time - start_time)
+        self.print_average_times()
         pygame.quit()
 
     def handle_events(self):
@@ -3079,12 +3109,12 @@ class MyGameGui(GameGui):
                 if result > 3:
                     self.running = False
 
-            if self.game.turn == 1:
-                self.game_state.game_state_matrix_opponent = self.game.game_state()
-                self.step_by_ai()
-                if self.game.turn == 0:
-                    self.game_state.game_state_matrix = self.game.game_state()
-                    self.game_state.set_state('normal')
+        if self.game.turn == 1:
+            self.game_state.game_state_matrix_opponent = self.game.game_state()
+            self.step_by_ai()
+            if self.game.turn == 0:
+                self.game_state.game_state_matrix = self.game.game_state()
+                self.game_state.set_state('normal')
 
     def step_by_ai(self):
         bool_actions, actions = self.game.valid_actions()
@@ -3093,25 +3123,27 @@ class MyGameGui(GameGui):
         result = self.game.step(self.game.get_index_of_action(actions[index]))
         if result > 3:
             self.running = False
-        if self.game_state.passed:
-            while self.game.turn == 1 and result < 3:
-                bool_actions, actions = self.game.valid_actions()
-                index = random.randrange(len(actions))
-                result = self.game.step(self.game.get_index_of_action(actions[index]))
-                print('AI action:' + str(actions[index]))
-
-            self.game_state.passed = False
-            if self.game.turn == 1 and result < 3:
-                self.step_by_ai()
-        if result > 3:
-            self.running = False
 
     def draw(self):
+        start_time = time.time()
         self.screen.blit(self.background_image, (0, 0))
-        self.panel_game.draw(self.screen)
+        end_time = time.time()
+        self.timing_data["screen_blit"].append(end_time - start_time)
 
-        # self.game_object.draw(self.screen)
+        start_time = time.time()
+        self.panel_game.draw(self.screen)
+        end_time = time.time()
+        self.timing_data["panel_game_draw"].append(end_time - start_time)
+
+        start_time = time.time()
         pygame.display.flip()
+        end_time = time.time()
+        self.timing_data["pygame_display_flip"].append(end_time - start_time)
+
+    def print_average_times(self):
+        for function, times in self.timing_data.items():
+            average_time = sum(times) / len(times) if times else 0
+            print(f"Average time for {function}: {average_time:.6f} seconds")
 
 
 if __name__ == '__main__':
