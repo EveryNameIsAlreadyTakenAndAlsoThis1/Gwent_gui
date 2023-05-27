@@ -1393,9 +1393,6 @@ class CardContainer(Component):
                             if card.type in ['Unit', 'Hero']:
                                 card.strength_text = int(
                                     self.game_state.game_state_matrix[index + 1][j] // int(element))
-                                print('matrix value' + str(
-                                    self.game_state.game_state_matrix[index + 1][j]) + ' element:' + str(
-                                    element) + 'result: ' + str(card.strength_text))
                                 self.cards.append(card)
             self.create_card_rect()
 
