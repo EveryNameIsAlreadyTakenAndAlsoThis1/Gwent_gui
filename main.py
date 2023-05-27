@@ -51,7 +51,7 @@ def load_file(file_path):
         if 'Northern Realms' in line or 'Scoiatael' in line or 'Neutral' in line or 'Nilfgaard' in line or 'Monsters' in line or 'Name' in line:
             continue
 
-        name, _id, strength, ability, card_type, placement, count, image, asd = line.split(',')
+        name, _id, strength, ability, card_type, placement, count, image, empty = line.split(',')
 
         type_icon = None
         if card_type == "Hero":
@@ -108,7 +108,7 @@ def load_file_game(file_path):
             result[current_group] = []
             continue
 
-        name, _id, strength, ability, card_type, placement, count = line.split(',')
+        name, _id, strength, ability, card_type, placement, count, image, empty = line.split(',')
 
         if name == 'Name':
             continue
@@ -3025,10 +3025,7 @@ class GameGui:
         self.screen = pygame.display.set_mode((self.width, self.height), pygame.FULLSCREEN)
         self.clock = pygame.time.Clock()
         self.running = True
-        current_dir = os.getcwd()
-        relative_path = "Game/Gwent.csv"
-        absolute_path = os.path.join(current_dir, relative_path)
-        cards = load_file_game(absolute_path)
+        cards = load_file_game('Gwent.csv')
         self.game = Game(cards)
         self.game_state = GameState()
         self.game_state.game_state_matrix = self.game.game_state()
@@ -3092,9 +3089,11 @@ class MyGameGui(GameGui):
             start_time = time.time()
             bool_actions, actions = self.game.valid_actions()
             action = None
+            action_a = None
             for a in self.game_state.parameter_actions:
                 if a in actions:
                     action = self.game.get_index_of_action(a)
+                    action_a = a
 
             self.game_state.parameter_actions.clear()
             self.game_state.parameter = None
@@ -3102,7 +3101,7 @@ class MyGameGui(GameGui):
             self.game_state.game_state_matrix = self.game.game_state()
             self.game_state.set_state('normal')
             if action is not None and self.game.turn == 0:
-                print(action)
+                print('Player action: ' + action_a)
                 result = self.game.step(action)
                 if self.game.turn == 0:
                     self.game_state.game_state_matrix = self.game.game_state()

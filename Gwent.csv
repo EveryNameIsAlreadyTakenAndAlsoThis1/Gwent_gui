@@ -1,5 +1,5 @@
 Northern Realms,,,,,,,,
-Name,Id,Strength,Ability,Type,Placement,Count,image small,image large
+Name,Id,Strength,Ability,Type,Placement,Count,image small,
 Vernon Roche,0,10,0,Hero,0,1,realms_vernon.jpg,
 John Natalis,1,10,0,Hero,0,1,realms_natalis.jpg,
 Esterad Thyssen,2,10,0,Hero,0,1,realms_esterad.jpg,
