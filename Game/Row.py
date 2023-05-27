@@ -209,13 +209,13 @@ class Row:
         elif card.type == 'Unit' and not card.ability == 'Bond' and not card.ability == 'Morale':
             current_strength = self.calculate_card_strength(card)
             card.current_strength = current_strength
-            self.cards_list_current_strength[card.id] = current_strength
+            self.cards_list_current_strength[card.id] = current_strength * len(self.cards[card.id])
             self.game_state_matrix.change_row_card_strength(self.id, card.id,
                                                             self.cards_list_current_strength[card.id])
             if insert:
                 self.check_max(card)
         else:
-            self.cards_list_current_strength[card.id] = card.current_strength
+            self.cards_list_current_strength[card.id] = card.current_strength * len(self.cards[card.id])
             self.game_state_matrix.change_row_card_strength(self.id, card.id,
                                                             self.cards_list_current_strength[card.id])
 
