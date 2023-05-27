@@ -14,10 +14,12 @@ class Deck:
             An ndarray of length 120 containing counts of each card in deck.
     """
 
-    def __init__(self):
+    def __init__(self, id, game_state_matrix):
         """
         Initializes an empty deck.
         """
+        self.game_state_matrix = game_state_matrix
+        self.id = id
         self.cards = []
         self.cards_count = np.zeros(120)
         # random.seed(0)
@@ -36,6 +38,7 @@ class Deck:
             index = random.randrange(len(self.cards))
             card = self.cards.pop(index)
             self.cards_count[card.id] -= 1
+            self.game_state_matrix.change_deck_count(self.id, card.id, self.cards_count[card.id])
             return card
 
     def add(self, card):
@@ -48,6 +51,7 @@ class Deck:
         """
         self.cards.append(card)
         self.cards_count[card.id] += 1
+        self.game_state_matrix.change_deck_count(self.id, card.id, self.cards_count[card.id])
 
     def draw_card_by_id(self, card_id):
         """
@@ -63,6 +67,7 @@ class Deck:
         drawn_cards = [card for card in self.cards if card.id == card_id]
         self.cards = [card for card in self.cards if card.id != card_id]
         self.cards_count[card_id] = 0
+        self.game_state_matrix.change_deck_count(self.id, card_id, self.cards_count[card_id])
         return drawn_cards
 
     def get_state(self):

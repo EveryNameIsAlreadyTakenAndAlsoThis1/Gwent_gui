@@ -28,10 +28,12 @@ class Row:
 
     """
 
-    def __init__(self):
+    def __init__(self, id, game_state_matrix):
         """
         Initializes a new instance of the Row class.
         """
+        self.game_state_matrix = game_state_matrix
+        self.id = id
         self.cards = {}
         self.cards_list_count = np.zeros(120)
         self.cards_list_current_strength = np.zeros(120)
@@ -41,12 +43,16 @@ class Row:
         self.row_strength = 0
         self.highest_value_non_hero = -1
         self.highest_value_non_hero_list = []
+        self.game_state_matrix.change_weather(self.id, self.weather)
+        self.game_state_matrix.change_row_multiplicative_modifier(self.id, self.multiplier_multiplicative)
+        self.game_state_matrix.change_row_score(self.id, self.row_strength)
 
     def activate_weather(self):
         """
         Activates the weather effect on the row.
         """
         self.weather = True
+        self.game_state_matrix.change_weather(self.id, self.weather)
         self.row_strength = 0
         for card_lists in self.cards.values():
             for card in card_lists:
@@ -56,12 +62,16 @@ class Row:
                 else:
                     self.row_strength += card.current_strength
             self.cards_list_current_strength[card_lists[0].id] = len(card_lists) * card_lists[0].current_strength
+            self.game_state_matrix.change_row_card_strength(self.id, card_lists[0].id,
+                                                            self.cards_list_current_strength[card_lists[0].id])
+            self.game_state_matrix.change_row_score(self.id, self.row_strength)
 
     def clear_weather(self):
         """
         Clears the weather effect on the row.
         """
         self.weather = False
+        self.game_state_matrix.change_weather(self.id, self.weather)
         self.row_strength = 0
         for card_lists in self.cards.values():
             for card in card_lists:
@@ -71,6 +81,9 @@ class Row:
                 else:
                     self.row_strength += card.current_strength
             self.cards_list_current_strength[card_lists[0].id] = len(card_lists) * card_lists[0].current_strength
+            self.game_state_matrix.change_row_card_strength(self.id, card_lists[0].id,
+                                                            self.cards_list_current_strength[card_lists[0].id])
+            self.game_state_matrix.change_row_score(self.id, self.row_strength)
 
     def add_card(self, card):
         """
@@ -85,6 +98,7 @@ class Row:
         else:
             self.cards[card.id] = [card]
         self.cards_list_count[card.id] += 1
+        self.game_state_matrix.change_row_card_count(self.id, card.id, self.cards_list_count[card.id])
         self.activate_cards_modifier(card)
         self.recalculate_current_strength(card, True)
 
@@ -103,6 +117,7 @@ class Row:
         else:
             self.cards[card_id] = card_list
         self.cards_list_count[card_id] += len(card_list)
+        self.game_state_matrix.change_row_card_count(self.id, card_id, self.cards_list_count[card_id])
         for card in card_list:
             self.activate_cards_modifier(card)
             self.recalculate_current_strength(card, True)
@@ -117,6 +132,7 @@ class Row:
         """
         if card_id in self.cards and self.cards[card_id]:
             self.cards_list_count[card_id] -= 1
+            self.game_state_matrix.change_row_card_count(self.id, card_id, self.cards_list_count[card_id])
             card = self.cards[card_id].pop()
             if len(self.cards[card_id]) == 0:
                 del self.cards[card_id]
@@ -140,8 +156,10 @@ class Row:
             self.recalculate_current_strength(card, False)
             if card.id in self.cards:
                 self.cards_list_count[card.id] = len(self.cards[card.id])
+                self.game_state_matrix.change_row_card_count(self.id, card.id, self.cards_list_count[card.id])
             else:
                 self.cards_list_count[card.id] = 0
+                self.game_state_matrix.change_row_card_count(self.id, card.id, self.cards_list_count[card.id])
         for card in self.highest_value_non_hero_list:
             self.remove_cards_modifiers(card)
 
@@ -174,6 +192,8 @@ class Row:
                         current_strength = self.calculate_card_strength(c)
                         c.current_strength = current_strength
                         self.cards_list_current_strength[c.id] = len(card_lists) * current_strength
+                        self.game_state_matrix.change_row_card_strength(self.id, c.id,
+                                                                        self.cards_list_current_strength[c.id])
                         if insert:
                             self.check_max(c)
         elif card.ability == 'Bond' and card.id in self.cards:
@@ -182,21 +202,28 @@ class Row:
                 current_strength = self.calculate_card_strength(c)
                 c.current_strength = current_strength
                 self.cards_list_current_strength[c.id] = len(self.cards[card.id]) * current_strength
+                self.game_state_matrix.change_row_card_strength(self.id, c.id,
+                                                                self.cards_list_current_strength[c.id])
                 if insert:
                     self.check_max(c)
         elif card.type == 'Unit' and not card.ability == 'Bond' and not card.ability == 'Morale':
             current_strength = self.calculate_card_strength(card)
             card.current_strength = current_strength
             self.cards_list_current_strength[card.id] = current_strength
+            self.game_state_matrix.change_row_card_strength(self.id, card.id,
+                                                            self.cards_list_current_strength[card.id])
             if insert:
                 self.check_max(card)
         else:
             self.cards_list_current_strength[card.id] = card.current_strength
+            self.game_state_matrix.change_row_card_strength(self.id, card.id,
+                                                            self.cards_list_current_strength[card.id])
 
         self.row_strength = 0
         for card_list in self.cards.values():
             for card_c in card_list:
                 self.row_strength += card_c.current_strength
+        self.game_state_matrix.change_row_score(self.id, self.row_strength)
 
     def calculate_card_strength(self, card):
         """
@@ -212,7 +239,7 @@ class Row:
         """
         if not self.weather:
             return ((
-                                card.strength * card.strength_modifier) + self.multiplier_additive) * self.multiplier_multiplicative
+                            card.strength * card.strength_modifier) + self.multiplier_additive) * self.multiplier_multiplicative
         elif self.weather:
             return ((1 * card.strength_modifier) + self.multiplier_additive) * self.multiplier_multiplicative
 
@@ -228,9 +255,11 @@ class Row:
             if card.name == 'Dandelion' or card.type == 'Morale':
                 # If the card is either Dandelion or has the Morale type, divide the player's multiplier by 2
                 self.multiplier_multiplicative /= 2
-            elif card.ability == 'Morale' and not card.name == 'Dandelion':
+                self.game_state_matrix.change_row_multiplicative_modifier(self.id, self.multiplier_multiplicative)
+            elif card.ability == 'Morale' and not card.name == 'Dandelion' and not card.type == 'Morale':
                 # If the card is of Morale type but not Dandelion, subtract 1 from the player's additive multiplier
                 self.multiplier_additive -= 1
+                self.game_state_matrix.change_row_additive_modifier(self.id, self.multiplier_additive)
         elif card.ability == 'Bond':
             # For each card in the player's deck with the same ID as the given card, set its strength modifier to the length of the deck
             if card.id in self.cards:
@@ -249,9 +278,11 @@ class Row:
             if (card.name == 'Dandelion' or card.type == 'Morale') and len(self.cards[card.id]) == 1:
                 # If the card is either Dandelion or has the Morale type and only one of it is in the row, multiply the multiplier by 2
                 self.multiplier_multiplicative *= 2
-            elif card.ability == 'Morale' and not card.name == 'Dandelion':
+                self.game_state_matrix.change_row_multiplicative_modifier(self.id, self.multiplier_multiplicative)
+            elif card.ability == 'Morale' and not card.name == 'Dandelion' and not card.type == 'Morale':
                 # If the card is of Morale type but not Dandelion, add 1 to the row's additive multiplier
                 self.multiplier_additive += 1
+                self.game_state_matrix.change_row_additive_modifier(self.id, self.multiplier_additive)
         elif card.ability == 'Bond':
             # For each card in the player's deck with the same ID as the given card, set its strength modifier to the length of the row
             for c in self.cards[card.id]:
@@ -300,3 +331,9 @@ class Row:
         """
         state = np.vstack((self.cards_list_count, self.cards_list_current_strength))
         return state
+
+    def clear_row(self):
+        for card_list in self.cards.values():
+            for card in card_list:
+                self.game_state_matrix.change_row_card_count(self.id, card.id, 0)
+                self.game_state_matrix.change_row_card_strength(self.id, card.id, 0)

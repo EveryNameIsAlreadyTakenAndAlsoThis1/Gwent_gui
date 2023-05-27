@@ -20,7 +20,7 @@ class Board:
             A list with value of player's combined rows.
     """
 
-    def __init__(self, players):
+    def __init__(self, players, game_state_matrix):
         """
         Initializes a Board instance with empty rows and empty graveyards.
 
@@ -31,8 +31,10 @@ class Board:
         Returns:
             None.
         """
-        self.rows = [Row(), Row(), Row(), Row(), Row(), Row()]
-        self.graveyards = [Graveyard(), Graveyard()]
+        self.game_state_matrix = game_state_matrix
+        self.rows = [Row(0, self.game_state_matrix), Row(1, self.game_state_matrix), Row(2, self.game_state_matrix),
+                     Row(3, self.game_state_matrix), Row(4, self.game_state_matrix), Row(5, self.game_state_matrix)]
+        self.graveyards = [Graveyard(0, self.game_state_matrix), Graveyard(1, self.game_state_matrix)]
         self.players = players
         self.player_strength = [0, 0]
 
@@ -154,13 +156,13 @@ class Board:
         Recalculates strength after placing card.
         """
         self.player_strength = [0, 0]
-        self.row_strength = [0, 0, 0, 0, 0, 0]
         for i in range(6):
-            self.row_strength[i] = self.rows[i].row_strength
             if i < 3:
                 self.player_strength[0] += self.rows[i].row_strength
+                self.game_state_matrix.change_score_player(0, self.player_strength[0])
             else:
                 self.player_strength[1] += self.rows[i].row_strength
+                self.game_state_matrix.change_score_player(1, self.player_strength[1])
 
     def end_game(self):
         """
@@ -172,8 +174,8 @@ class Board:
                 self.graveyards[0].add_row(self.rows[i])
             else:
                 self.graveyards[1].add_row(self.rows[i])
-
-            self.rows[i] = Row()
+            self.rows[i].clear_row()
+            self.rows[i] = Row(i, self.game_state_matrix)
 
         self.calculate_strength()
 

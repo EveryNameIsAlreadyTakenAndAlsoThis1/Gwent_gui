@@ -13,10 +13,12 @@ class Graveyard:
             A dictionary containing lists of cards, where the keys are card IDs.
     """
 
-    def __init__(self):
+    def __init__(self, id, game_state_matrix):
         """
         Constructor for Graveyard class. Initializes an empty dictionary to store the cards.
         """
+        self.game_state_matrix = game_state_matrix
+        self.id = id
         self.cards = {}
         self.cards_count = np.zeros(120)
 
@@ -52,6 +54,7 @@ class Graveyard:
         else:
             self.cards[card_id] = card_list
         self.cards_count[card_id] += len(card_list)
+        self.game_state_matrix.change_graveyard_card_count(self.id, card_id, self.cards_count[card_id])
 
     def revive_cards(self, card_id):
         """
@@ -72,9 +75,14 @@ class Graveyard:
                 if len(card_list) > 0 and card_list[0].ability == 'Medic' and card_list[0].type == 'Unit':
                     cards_to_revive.extend(card_list)
                     self.cards_count[card_list[0].id] = 0
+                    self.game_state_matrix.change_graveyard_card_count(self.id, card_list[0].id,
+                                                                       self.cards_count[card_list[0].id])
                     card_list = []
             cards_to_revive.extend([self.cards[card_id].pop()])
             self.cards_count[card_id] -= 1
+            self.game_state_matrix.change_graveyard_card_count(self.id, card_id,
+                                                               self.cards_count[card_id])
+
             return cards_to_revive
 
     def add_cards(self, card_list):
@@ -102,6 +110,8 @@ class Graveyard:
         else:
             self.cards[card.id] = [card]
         self.cards_count[card.id] += 1
+        self.game_state_matrix.change_graveyard_card_count(self.id, card.id,
+                                                           self.cards_count[card.id])
 
     def get_state(self):
         """

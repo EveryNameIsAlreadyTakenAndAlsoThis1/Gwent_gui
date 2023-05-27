@@ -2,6 +2,7 @@ from Game.Board import Board
 from Game.Player import Player
 from Game.Card import Card
 from Game.Deck import Deck
+from Game.GameState import GameState
 import numpy as np
 
 
@@ -41,16 +42,20 @@ class Game:
 
         self.turn = 0
         self.all_cards = all_cards
+        self.game_state_matrix = GameState()
+        self.game_state_matrix.starting_state(self.all_cards)
         self.cards_by_id = {}
         self.actions_index_by_id = {}
         for group in self.all_cards.values():
             for card in group:
                 self.cards_by_id[card['Id']] = card
-        self.players = [Player(self.create_deck(2)), Player(self.create_deck(2))]
-        self.board = Board(self.players)
+        self.players = [Player(0, self.create_deck(0, 2), self.game_state_matrix),
+                        Player(1, self.create_deck(1, 2), self.game_state_matrix)]
+        self.board = Board(self.players, self.game_state_matrix)
         self.starting_state()
         self.actions = self.create_actions()
         self.end = False
+
         self.starting_state = self.starting_state()
 
     def step(self, action):
@@ -76,7 +81,7 @@ class Game:
         """
         if self.actions[action] == '-1':
             # -1 is last action that is available until player takes this action
-            self.players[self.turn].passed = True
+            self.players[self.turn].pass_game()
             # Both players passed end of round
             if self.players[self.turn].passed == True and self.players[self.turn ^ 1].passed == True:
                 if self.board.player_strength[self.turn] > self.board.player_strength[self.turn ^ 1]:
@@ -139,9 +144,14 @@ class Game:
 
         state = np.hstack((state_row, state_col))
 
+        compare = self.game_state_matrix.state_matrix_0
+        if self.turn == 1:
+            compare = self.game_state_matrix.state_matrix_1
+        self.compare_matrices(state, compare)
+
         return state
 
-    def create_deck(self, option):
+    def create_deck(self, id, option):
         """
         Creates a deck for the specified option (1 for Northern Realms, 2 for Nilfgaard, 9 deck testing).
 
@@ -154,7 +164,7 @@ class Game:
         Returns:
             Deck: The created deck.
         """
-        deck = Deck()
+        deck = Deck(id, self.game_state_matrix)
 
         # Northern Realms
         if option == 1:
@@ -586,3 +596,20 @@ class Game:
         out += '\n'
 
         return out
+
+    def compare_matrices(self, matrix1, matrix2):
+        if matrix1.shape != matrix2.shape:
+            print("Matrices have different shapes.")
+            return
+
+        comparison = matrix1 == matrix2
+        if comparison.all():
+            print("Matrices are identical.")
+        else:
+            diff_positions = np.where(comparison == False)
+            for row, col in zip(diff_positions[0], diff_positions[1]):
+                val1 = matrix1[row, col]
+                val2 = matrix2[row, col]
+                print(f"Difference at position ({row}, {col}):")
+                print(f"Matrix 1 value: {val1}")
+                print(f"Matrix 2 value: {val2}")

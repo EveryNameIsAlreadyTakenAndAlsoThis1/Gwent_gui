@@ -2889,7 +2889,7 @@ class Carousel(Component):
         screen : pygame.Surface
             The screen onto which the carousel should be drawn.
         """
-        if self.current_index > len(self.cards):
+        if self.current_index > len(self.cards) - 1:
             self.current_index = 0
         if len(self.cards) > 0:
             # Calculate positions for all cards
@@ -3029,6 +3029,8 @@ class GameGui:
         self.game = Game(cards)
         self.game_state = GameState()
         self.game_state.game_state_matrix = self.game.game_state()
+        self.game_state.game_state_matrix = self.game.game_state_matrix.state_matrix_0
+        self.game_state.game_state_matrix_opponent = self.game.game_state_matrix.state_matrix_1
         self.timing_data = {
             "handle_events": [],
             "update": [],
@@ -3036,7 +3038,8 @@ class GameGui:
             "screen_blit": [],
             "panel_game_draw": [],
             "pygame_display_flip": [],
-            "update action": []
+            "update action": [],
+            "game state call": []
         }
 
 
@@ -3098,13 +3101,11 @@ class MyGameGui(GameGui):
             self.game_state.parameter_actions.clear()
             self.game_state.parameter = None
 
-            self.game_state.game_state_matrix = self.game.game_state()
             self.game_state.set_state('normal')
             if action is not None and self.game.turn == 0:
                 print('Player action: ' + action_a)
                 result = self.game.step(action)
                 if self.game.turn == 0:
-                    self.game_state.game_state_matrix = self.game.game_state()
                     self.game_state.set_state('normal')
 
                 if result > 3:
@@ -3114,15 +3115,13 @@ class MyGameGui(GameGui):
             self.timing_data["update action"].append(end_time - start_time)
 
         if self.game.turn == 1:
-            start_time = time.time()
-            self.game_state.game_state_matrix_opponent = self.game.game_state()
             self.step_by_ai()
             if self.game.turn == 0:
-                self.game_state.game_state_matrix = self.game.game_state()
                 self.game_state.set_state('normal')
 
             end_time = time.time()
             self.timing_data["update action"].append(end_time - start_time)
+
 
     def step_by_ai(self):
         bool_actions, actions = self.game.valid_actions()
@@ -3131,6 +3130,7 @@ class MyGameGui(GameGui):
         result = self.game.step(self.game.get_index_of_action(actions[index]))
         if result > 3:
             self.running = False
+
 
     def draw(self):
         start_time = time.time()
@@ -3147,6 +3147,7 @@ class MyGameGui(GameGui):
         pygame.display.flip()
         end_time = time.time()
         self.timing_data["pygame_display_flip"].append(end_time - start_time)
+
 
     def print_average_times(self):
         for function, times in self.timing_data.items():
