@@ -343,6 +343,7 @@ class GameState(Subject):
         self.game_state_matrix = None
         self.game_state_matrix_opponent = None
         self.passed = False
+        self.hovering_card = None
 
     def set_state(self, new_state):
         """
@@ -354,6 +355,7 @@ class GameState(Subject):
             The new state to set.
         """
         self.state = new_state
+        self.hovering_card = None
         self.notify()
 
 
@@ -453,6 +455,10 @@ class Card:
         self.position_hand = -1
         self.is_placed = False
         self.parent_container = None
+        self.hovering_x = None
+        self.hovering_y = None
+        self.hovering_image = None
+        self.hovering_text = False
 
         # Initialize the large and small images
         self.large_image = self.data['Image_lg']
@@ -865,6 +871,14 @@ class FieldRow(Component):
         self.row_special = RowSpecial(game_state, self, 0.1425, 1, 0.055, 0)
         self.row_cards = RowCards(self.row_id, game_state, self, 0.797, 1, 0.2, 0, is_opponent)
         self.is_opponent = is_opponent
+        self.weather_active = False
+        self.weather_image = None
+        if self.row_id == 0:
+            self.weather_image = pygame.image.load('img/icons/overlay_frost.png')
+        elif self.row_id == 1:
+            self.weather_image = pygame.image.load('img/icons/overlay_fog.png')
+        else:
+            self.weather_image = pygame.image.load('img/icons/overlay_rain.png')
 
     def draw(self, screen):
         """
@@ -882,8 +896,13 @@ class FieldRow(Component):
         # self.row_score.render(screen)
         self.row_special.draw(screen)
         self.row_cards.draw(screen)
-        # self.row_special.render(screen)
-        # self.row_cards.render(screen)
+        if self.weather_active:
+            weather_img = pygame.transform.smoothscale(self.weather_image,
+                                                       (self.width - self.row_score.width, self.height))
+            screen.blit(weather_img, (self.row_special.x, self.row_special.y))
+
+    # self.row_special.render(screen)
+    # self.row_cards.render(screen)
 
     def handle_event(self, event):
         self.row_cards.handle_event(event)
@@ -891,17 +910,25 @@ class FieldRow(Component):
     def update(self, subject):
         if subject is self.game_state and self.game_state.state == 'normal':
             if self.is_opponent:
+                start_value = 7
                 self.row_score.set_score(int(self.game_state.game_state_matrix[0][142 + self.row_id]))
-                if self.game_state.game_state_matrix[0][136 + self.row_id] > 1:
+                if self.game_state.game_state_matrix[0][136 + self.row_id] > 1 and \
+                        self.game_state.game_state_matrix[start_value + self.row_id * 2][58] >= 1:
                     self.row_special.active = True
                 else:
                     self.row_special.active = False
             else:
+                start_value = 1
                 self.row_score.set_score(int(self.game_state.game_state_matrix[0][139 + self.row_id]))
-                if self.game_state.game_state_matrix[0][133 + self.row_id] > 1:
+                if self.game_state.game_state_matrix[0][133 + self.row_id] > 1 and \
+                        self.game_state.game_state_matrix[start_value + self.row_id * 2][58] >= 1:
                     self.row_special.active = True
                 else:
                     self.row_special.active = False
+            if self.game_state.game_state_matrix[0][120 + self.row_id] > 0:
+                self.weather_active = True
+            else:
+                self.weather_active = False
 
 
 class RowSpecial(Component):
@@ -979,13 +1006,10 @@ class RowSpecial(Component):
                 self.card.hovering = True
         if self.card.hovering and self.allow_hovering:
             hovering_image = self.card.image.copy()
-            hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
-            screen.blit(hovering_image, (img_x, img_y))
-            card_preview = CardPreview(self.game_state, screen.get_rect(), self.card)
-            card_preview.draw(screen)
-            if self.card.ability != '0':
-                card_description = CardDescription(self.game_state, screen.get_rect(), self.card)
-                card_description.draw(screen)
+            self.card.hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
+            self.card.hovering_x = img_x
+            self.card.hovering_y = img_y
+            self.game_state.hovering_card = self.card
 
     def update(self, subject):
         if subject is self.game_state and self.game_state.state == 'carousel':
@@ -1305,13 +1329,11 @@ class CardContainer(Component):
                     hovering_image = card.image.copy()
                     hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
                     card_x = start_x + i * (card.image_scaled.get_width() - overlap)
-                    screen.blit(hovering_image, (card_x, start_y))
-                    card_preview = CardPreview(self.game_state, screen.get_rect(), card)
-                    card_preview.draw(screen)
-                    card_strength_text(screen, card, card_x, start_y, hovering_image)
-                    if card.ability != '0':
-                        card_description = CardDescription(self.game_state, screen.get_rect(), card)
-                        card_description.draw(screen)
+                    card.hovering_x = card_x
+                    card.hovering_y = start_y
+                    card.hovering_image = hovering_image
+                    self.game_state.hovering_card = card
+                    card.hovering_text = True
 
     def create_card_rect(self):
         if len(self.cards) > 0:
@@ -1681,6 +1703,19 @@ class PanelGame(Component):
                 panel.draw(screen)
             if self.game_state.state == 'dragging':
                 self.game_state.parameter.draw(screen)
+
+        if self.game_state.state == 'normal' and self.game_state.hovering_card is not None and self.game_state.hovering_card.hovering:
+            hovering_image = self.game_state.hovering_card.hovering_image
+            screen.blit(hovering_image,
+                        (self.game_state.hovering_card.hovering_x, self.game_state.hovering_card.hovering_y))
+            card_preview = CardPreview(self.game_state, screen.get_rect(), self.game_state.hovering_card)
+            card_preview.draw(screen)
+            if self.game_state.hovering_card.hovering_text:
+                card_strength_text(screen, self.game_state.hovering_card, self.game_state.hovering_card.hovering_x,
+                                   self.game_state.hovering_card.hovering_y, hovering_image)
+            if self.game_state.hovering_card.ability != '0':
+                card_description = CardDescription(self.game_state, screen.get_rect(), self.game_state.hovering_card)
+                card_description.draw(screen)
         if self.carousal_active:
             if self.game_state.parameter is None:
                 self.panel_carousel.cards = self.panel_right.grave_me.cards
@@ -2639,12 +2674,16 @@ class Weather(Component):
                     hovering_image = card.image.copy()
                     hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
                     card_x = start_x + i * (card.image_scaled.get_width() - overlap)
-                    screen.blit(hovering_image, (card_x, start_y))
-                    card_preview = CardPreview(self.game_state, screen.get_rect(), card)
-                    card_preview.draw(screen)
-                    if card.ability != '0':
-                        card_description = CardDescription(self.game_state, screen.get_rect(), card)
-                        card_description.draw(screen)
+                    card.hovering_x = card_x
+                    card.hovering_y = start_y
+                    card.hovering_image = hovering_image
+                    self.game_state.hovering_card = card
+                    # screen.blit(hovering_image, (card_x, start_y))
+                    # card_preview = CardPreview(self.game_state, screen.get_rect(), card)
+                    # card_preview.draw(screen)
+                    # if card.ability != '0':
+                    #    card_description = CardDescription(self.game_state, screen.get_rect(), card)
+                    #    card_description.draw(screen)
 
     def update(self, subject):
         if subject is self.game_state and self.game_state.state == 'carousel':
@@ -3028,7 +3067,6 @@ class GameGui:
         cards = load_file_game('Gwent.csv')
         self.game = Game(cards)
         self.game_state = GameState()
-        self.game_state.game_state_matrix = self.game.game_state()
         self.game_state.game_state_matrix = self.game.game_state_matrix.state_matrix_0
         self.game_state.game_state_matrix_opponent = self.game.game_state_matrix.state_matrix_1
         self.timing_data = {
