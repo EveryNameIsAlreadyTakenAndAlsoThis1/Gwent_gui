@@ -3081,6 +3081,9 @@ class GameGui:
             "step call": [],
             "set_state call": []
         }
+        self.preview_start_time = None
+        self.action_ai_draw = None
+        self.index_action_ai = None
 
 
 class MyGameGui(GameGui):
@@ -3175,12 +3178,23 @@ class MyGameGui(GameGui):
             self.timing_data["set_state call"].append(end_time_set_state - start_time_set_state)
 
     def step_by_ai(self):
-        bool_actions, actions = self.game.valid_actions()
-        index = random.randrange(len(actions))
-        print('AI action:' + str(actions[index]))
-        result = self.game.step(self.game.get_index_of_action(actions[index]))
-        if result > 3:
-            self.running = False
+        if self.index_action_ai is None:
+            bool_actions, actions = self.game.valid_actions()
+            index = random.randrange(len(actions))
+            self.index_action_ai = index
+            print('AI action:' + str(actions[index]))
+            start_time = time.time()
+            end_time = start_time + 2
+            split = actions[index].split(',')
+            if int(split[0]) > -1:
+                preview_card = Card(int(split[0]), data, self.game_state)
+                self.action_ai_draw = CardPreview(self.game_state, self.screen.get_rect(), preview_card)
+                self.preview_start_time = pygame.time.get_ticks()
+            else:
+                result = self.game.step(self.game.get_index_of_action(actions[self.index_action_ai]))
+                self.index_action_ai = None
+                if result > 3:
+                    self.running = False
 
     def draw(self):
         start_time = time.time()
@@ -3192,6 +3206,19 @@ class MyGameGui(GameGui):
         self.panel_game.draw(self.screen)
         end_time = time.time()
         self.timing_data["panel_game_draw"].append(end_time - start_time)
+
+        if self.preview_start_time is not None:
+            elapsed_time = pygame.time.get_ticks() - self.preview_start_time
+            if elapsed_time < 500:  # 500 ms = 0.5 seconds
+                self.action_ai_draw.draw(self.screen)
+            else:
+                self.preview_start_time = None
+                bool_actions, actions = self.game.valid_actions()
+                result = self.game.step(self.game.get_index_of_action(actions[self.index_action_ai]))
+                self.game_state.set_state('normal')
+                self.index_action_ai = None
+                if result > 3:
+                    self.running = False
 
         start_time = time.time()
         pygame.display.flip()
