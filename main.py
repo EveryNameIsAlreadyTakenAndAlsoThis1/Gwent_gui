@@ -197,7 +197,7 @@ def draw_centered_text(screen, text, rect):
     ----------
     screen : pygame.Surface
         The screen onto which the text should be drawn.
-    text : string
+    text : pygame.Surface
         The text to be drawn.
     rect : pygame.Rect
         The rectangle within which the text should be centered.
@@ -342,8 +342,8 @@ class GameState(Subject):
         self.parameter_actions = []
         self.game_state_matrix = None
         self.game_state_matrix_opponent = None
-        self.passed = False
         self.hovering_card = None
+        self.pause_menu_option = None
 
     def set_state(self, new_state):
         """
@@ -556,13 +556,13 @@ class Component(Observer):
 
     Attributes:
     -----------
-    width : int
+    width : float
         The width of the component.
-    height : int
+    height : float
         The height of the component.
-    x : int
+    x : float
         The x-coordinate of the top left corner of the component.
-    y : int
+    y : float
         The y-coordinate of the top left corner of the component.
     rect : pygame.Rect
         The Rect object representing the component.
@@ -599,6 +599,7 @@ class Component(Observer):
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
         self.game_state = game_state
         self.game_state.register(self)
+        self.font_small = ResizableFont('Arial Narrow.ttf', 50)
 
     def render(self, screen):
         """
@@ -1661,6 +1662,10 @@ class PanelGame(Component):
             The rectangle representing the area of the parent screen.
         """
         super().__init__(game_state, parent_rect, 1, 1, 0, 0)
+        # Load the background image
+        self.background_image = pygame.image.load('img/board.jpg')  # Replace with your image path
+        self.background_image = pygame.transform.scale(self.background_image,
+                                                       (self.width, self.height))  # Scale the image to fit the screen
         self.panel_list = []
         self.game_state = game_state
         # Initialize the left panel
@@ -1696,6 +1701,7 @@ class PanelGame(Component):
             The surface onto which the panels should be drawn.
         """
         # Get the mouse cursor position
+        screen.blit(self.background_image, (0, 0))
         mouse_pos = pygame.mouse.get_pos()
         for panel in self.panel_list:
             if not panel.rect.collidepoint(mouse_pos):
@@ -3147,6 +3153,41 @@ class ResizableFont:
         self.font = pygame.font.Font(self.path, self.size)
 
 
+class PauseMenu(Component):
+    def __init__(self, game_state, parent_rect):
+        super().__init__(game_state, parent_rect, 0.25, 0.25, 0.375, 0.375)
+        self.options = ["Resume Game", "Restart Game", "Main Menu", "Exit Game"]
+        self.option_rects = []
+        self.current_option_index = None
+
+        self.surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        self.surface.fill((0, 0, 0, 240))
+
+        option_height = self.height / len(self.options)
+        for i, option in enumerate(self.options):
+            option_rect = Component(game_state, self.rect, 1, 1 / len(self.options), 0, i / len(self.options))
+            self.option_rects.append(option_rect)
+
+    def draw(self, screen):
+        screen.blit(self.surface, (self.x, self.y))
+        for i, (option_rect, option) in enumerate(zip(self.option_rects, self.options)):
+            if i == self.current_option_index:
+                pygame.draw.rect(screen, (218, 165, 32), option_rect.rect, 3)  # draw border
+            text = option_rect.font_small.font.render(option, True, (218, 165, 32))
+            draw_centered_text(screen, text, option_rect)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEMOTION:
+            self.current_option_index = None
+            for i, option_rect in enumerate(self.option_rects):
+                if option_rect.rect.collidepoint(event.pos):
+                    self.current_option_index = i
+                    break
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if self.current_option_index is not None:
+                self.game_state.pause_menu_option = self.current_option_index
+
+
 class GameGui:
     def __init__(self, fps=60):
         pygame.init()
@@ -3157,8 +3198,8 @@ class GameGui:
         self.screen = pygame.display.set_mode((self.width, self.height), pygame.FULLSCREEN)
         self.clock = pygame.time.Clock()
         self.running = True
-        cards = load_file_game('Gwent.csv')
-        self.game = Game(cards)
+        self.cards = load_file_game('Gwent.csv')
+        self.game = Game(self.cards)
         self.game_state = GameState()
         self.game_state.game_state_matrix = self.game.game_state_matrix.state_matrix_0
         self.game_state.game_state_matrix_opponent = self.game.game_state_matrix.state_matrix_1
@@ -3185,32 +3226,16 @@ class GameGui:
 class MyGameGui(GameGui):
     def __init__(self):
         super().__init__()
-        self.font_small = ResizableFont('Arial Narrow.ttf', 24)
-        # Load the background image
-        self.background_image = pygame.image.load('img/board.jpg')  # Replace with your image path
-        self.background_image = pygame.transform.scale(self.background_image,
-                                                       (self.width, self.height))  # Scale the image to fit the screen
         self.panel_game = PanelGame(self.game_state, self.screen.get_rect())
+        self.pause_menu = PauseMenu(self.game_state, self.screen.get_rect())
         self.game_state.set_state('normal')
 
     def run(self):
         while self.running:
             self.clock.tick(self.fps)
-            start_time = time.time()
             self.handle_events()
-            end_time = time.time()
-            self.timing_data["handle_events"].append(end_time - start_time)
-
-            start_time = time.time()
             self.update()
-            end_time = time.time()
-            self.timing_data["update"].append(end_time - start_time)
-
-            start_time = time.time()
             self.draw()
-            end_time = time.time()
-            self.timing_data["draw"].append(end_time - start_time)
-        # self.print_average_times()
         pygame.quit()
 
     def handle_events(self):
@@ -3219,48 +3244,64 @@ class MyGameGui(GameGui):
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE and self.game_state.state == 'normal':
-                    self.running = False
+                    self.game_state.set_state('menu')
                 elif event.key == pygame.K_SPACE and self.game_state.state == 'normal':
                     self.game_state.parameter_actions.append('-1')
-                    self.game_state.passed = True
-
-            self.panel_game.handle_event(event)
+                elif event.key == pygame.K_ESCAPE and self.game_state.state == 'menu':
+                    self.game_state.set_state('normal')
+            if self.game_state.state in ['normal', 'dragging', 'carousel']:
+                self.panel_game.handle_event(event)
+            elif self.game_state.state in ['menu']:
+                self.pause_menu.handle_event(event)
 
     def update(self):
-        if len(self.game_state.parameter_actions) > 0 and self.game_state.state == 'normal':
-            bool_actions, actions = self.game.valid_actions()
-            action = None
-            action_a = None
-            for a in self.game_state.parameter_actions:
-                if a in actions:
-                    action = self.game.get_index_of_action(a)
-                    action_a = a
+        if self.game_state.state in ['normal', 'dragging', 'carousel']:
+            if len(self.game_state.parameter_actions) > 0 and self.game_state.state == 'normal':
+                bool_actions, actions = self.game.valid_actions()
+                action = None
+                action_a = None
+                for a in self.game_state.parameter_actions:
+                    if a in actions:
+                        action = self.game.get_index_of_action(a)
+                        action_a = a
 
-            self.game_state.parameter_actions.clear()
-            self.game_state.parameter = None
-            if action is not None and self.game.turn == 0:
-                print('Player action: ' + action_a)
-                result = self.game.step(action)
-                self.game_state.set_state('normal')
-                if action_a == '-1':
-                    self.notifications.append(NotifyAction('me-pass', 0, 0))
-                if result > 0:
-                    if result == 1:
-                        self.notifications.append(NotifyAction('win-round', 0, 0))
-                    elif result == 2:
-                        self.notifications.append(NotifyAction('lose-round', 0, 0))
-                    elif result == 3:
-                        self.notifications.append(NotifyAction('draw-round', 0, 0))
-                    else:
-                        self.running = False
+                self.game_state.parameter_actions.clear()
+                self.game_state.parameter = None
+                if action is not None and self.game.turn == 0:
+                    print('Player action: ' + action_a)
+                    result = self.game.step(action)
+                    self.game_state.set_state('normal')
+                    if action_a == '-1':
+                        self.notifications.append(NotifyAction('me-pass', 0, 0))
+                    if result > 0:
+                        if result == 1:
+                            self.notifications.append(NotifyAction('win-round', 0, 0))
+                        elif result == 2:
+                            self.notifications.append(NotifyAction('lose-round', 0, 0))
+                        elif result == 3:
+                            self.notifications.append(NotifyAction('draw-round', 0, 0))
+                        else:
+                            self.running = False
 
-                if result < 3 and self.game.turn == 1:
-                    self.notifications.append(NotifyAction('op-turn', 0, 0))
-                elif 0 < result < 3 and self.game.turn == 0:
-                    self.notifications.append(NotifyAction('me-turn', 0, 0))
+                    if result < 3 and self.game.turn == 1:
+                        self.notifications.append(NotifyAction('op-turn', 0, 0))
+                    elif 0 < result < 3 and self.game.turn == 0:
+                        self.notifications.append(NotifyAction('me-turn', 0, 0))
 
-        if self.game.turn == 1:
-            self.step_by_ai()
+            if self.game.turn == 1:
+                self.step_by_ai()
+        if self.game_state.state in ['menu']:
+            action = self.game_state.pause_menu_option
+            self.game_state.pause_menu_option = None
+            if action is not None:
+                if action == 0:
+                    self.game_state.set_state('normal')
+                elif action == 1:
+                    self.restart_game()
+                elif action == 2:
+                    pass
+                elif action == 3:
+                    self.running = False
 
     def step_by_ai(self):
         if self.index_action_ai is None:
@@ -3278,10 +3319,14 @@ class MyGameGui(GameGui):
                 self.action_ai_draw = None
 
     def draw(self):
-        self.screen.blit(self.background_image, (0, 0))
-        self.panel_game.draw(self.screen)
-        self.draw_ai_action()
-        self.draw_notification()
+        if self.game_state.state in ['normal', 'dragging', 'carousel']:
+            self.panel_game.draw(self.screen)
+            self.draw_ai_action()
+            self.draw_notification()
+        elif self.game_state.state in ['menu']:
+            self.panel_game.draw(self.screen)
+            self.pause_menu.draw(self.screen)
+
         pygame.display.flip()
 
     def draw_ai_action(self):
@@ -3339,6 +3384,22 @@ class MyGameGui(GameGui):
                 print(f"Average time for {function}: {average_time:.6f} seconds, Maximum time: {max_time:.6f} seconds")
             else:
                 print(f"No timing data for {function}")
+
+    def restart_game(self):
+        self.running = True
+        self.game = Game(self.cards)
+        self.game_state = GameState()
+        self.game_state.game_state_matrix = self.game.game_state_matrix.state_matrix_0
+        self.game_state.game_state_matrix_opponent = self.game.game_state_matrix.state_matrix_1
+        self.preview_start_time = None
+        self.action_ai_draw = None
+        self.index_action_ai = None
+        self.notification = Notify(self.game_state, self.screen.get_rect(), 1, 0.14, 0, 0.43)
+        self.notifications = []
+        self.ai_preview = False
+        self.panel_game = PanelGame(self.game_state, self.screen.get_rect())
+        self.pause_menu = PauseMenu(self.game_state, self.screen.get_rect())
+        self.game_state.set_state('normal')
 
 
 if __name__ == '__main__':
