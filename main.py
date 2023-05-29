@@ -197,7 +197,7 @@ def draw_centered_text(screen, text, rect):
     ----------
     screen : pygame.Surface
         The screen onto which the text should be drawn.
-    text : pygame.Surface
+    text : string
         The text to be drawn.
     rect : pygame.Rect
         The rectangle within which the text should be centered.
@@ -1530,7 +1530,9 @@ class Field(Component):
         if self.game_state.state != 'carousel':
             for fieldRow in self.field_list:
                 if event.type == pygame.MOUSEBUTTONUP and fieldRow.rect.collidepoint(event.pos):
-                    if self.game_state.parameter is not None and self.game_state.parameter.ability == 'Medic':
+                    if self.game_state.parameter is not None \
+                            and isinstance(self.game_state.parameter, Card) \
+                            and self.game_state.parameter.ability == 'Medic':
                         self.game_state.parameter_actions.append(
                             str(self.game_state.parameter._id) + ',' + str(fieldRow.row_id) + ',' + '-1')
                         self.game_state.parameter = None
@@ -3007,6 +3009,97 @@ class Carousel(Component):
                 self.game_state.set_state('normal')
 
 
+class Notify(Component):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+
+        self.notify_component_image = NotifyComponent(self.game_state, self.rect, 0.221, 2.07, 0.2255, -0.666)
+        self.notify_component_text = NotifyComponent(self.game_state, self.notify_component_image.rect, 2.05, 0.4725,
+                                                     1.005, 0.321)
+        self.set_notification('op-coin')
+
+    def draw(self, screen):
+        background = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        background.fill((10, 10, 10, 240))
+        screen.blit(background, (self.x, self.y))
+        self.notify_component_image.draw(screen)
+        self.notify_component_text.draw(screen)
+
+    def set_notification(self, notification):
+        if notification == 'me-first':
+            self.notify_component_text.text_to_draw = "You will go first"
+            self.notify_component_image.image_to_draw = None
+        elif notification == 'op-first':
+            self.notify_component_text.text_to_draw = "Your opponent will go first"
+            self.notify_component_image.image_to_draw = None
+        elif notification == 'op-coin':
+            self.notify_component_text.text_to_draw = "Your opponent will go first"
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_op_coin.png')
+        elif notification == 'me-coin':
+            self.notify_component_text.text_to_draw = "You will go first"
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_me_coin.png')
+        elif notification == 'round-start':
+            self.notify_component_text.text_to_draw = 'Round Start'
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_round_start.png')
+        elif notification == 'me-pass':
+            self.notify_component_text.text_to_draw = "Round passed"
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_round_passed.png')
+        elif notification == 'op-pass':
+            self.notify_component_text.text_to_draw = "Your opponent has passed"
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_round_passed.png')
+        elif notification == 'win-round':
+            self.notify_component_text.text_to_draw = "You won the round!"
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_win_round.png')
+        elif notification == 'lose-round':
+            self.notify_component_text.text_to_draw = "Your opponent won the round!"
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_lose_round.png')
+        elif notification == 'draw-round':
+            self.notify_component_text.text_to_draw = "The round ended in a draw!"
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_draw_round.png')
+        elif notification == 'me-turn':
+            self.notify_component_text.text_to_draw = "Your turn!"
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_me_turn.png')
+        elif notification == 'op-turn':
+            self.notify_component_text.text_to_draw = "Opponent's turn!"
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_op_turn.png')
+        elif notification == 'north':
+            self.notify_component_text.text_to_draw = "Northern Realms faction ability triggered - North draws an additional card."
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_north.png')
+        elif notification == 'monsters':
+            self.notify_component_text.text_to_draw = "Monsters faction ability triggered - one randomly-chosen Monster Unit Card stays on the board."
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_monsters.png')
+        elif notification == 'scoiatael':
+            self.notify_component_text.text_to_draw = "Opponent used the Scoia'tael faction perk to go first."
+            self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_scoiatael.png')
+
+
+class NotifyComponent(Component):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.image_to_draw = None
+        self.text_to_draw = None
+        self.font_small = ResizableFont('Arial Narrow.ttf', 50)
+
+    def draw(self, screen):
+        if self.image_to_draw is not None:
+            screen.blit(self.image_to_draw, (self.x, self.y))
+        elif self.text_to_draw is not None:
+            text = fit_text_in_rect(self.text_to_draw, self.font_small, (218, 165, 32), self.rect)
+            # Get the rectangle of the text
+            text_rect = text.get_rect()
+            # Position the center of the rectangle at the center of the NotifyComponent
+            text_rect.x = self.x
+            text_rect.centery = self.y + self.height / 2
+            screen.blit(text, text_rect)
+
+
+class NotifyAction:
+    def __init__(self, notification_name, start_time, elapsed_time):
+        self.notification_name = notification_name
+        self.start_time = start_time
+        self.elapsed_time = elapsed_time
+
+
 class ResizableFont:
     """
     This class represents a resizable font for pygame rendering.
@@ -3084,6 +3177,9 @@ class GameGui:
         self.preview_start_time = None
         self.action_ai_draw = None
         self.index_action_ai = None
+        self.notification = Notify(self.game_state, self.screen.get_rect(), 1, 0.14, 0, 0.43)
+        self.notifications = []
+        self.ai_preview = False
 
 
 class MyGameGui(GameGui):
@@ -3114,7 +3210,7 @@ class MyGameGui(GameGui):
             self.draw()
             end_time = time.time()
             self.timing_data["draw"].append(end_time - start_time)
-        self.print_average_times()
+        # self.print_average_times()
         pygame.quit()
 
     def handle_events(self):
@@ -3131,9 +3227,7 @@ class MyGameGui(GameGui):
             self.panel_game.handle_event(event)
 
     def update(self):
-        need_to_refresh = False
         if len(self.game_state.parameter_actions) > 0 and self.game_state.state == 'normal':
-            start_time = time.time()
             bool_actions, actions = self.game.valid_actions()
             action = None
             action_a = None
@@ -3146,36 +3240,27 @@ class MyGameGui(GameGui):
             self.game_state.parameter = None
             if action is not None and self.game.turn == 0:
                 print('Player action: ' + action_a)
-                start_time_step = time.time()
                 result = self.game.step(action)
-                end_time_step = time.time()
-                self.timing_data["step call"].append(end_time_step - start_time_step)
+                self.game_state.set_state('normal')
+                if action_a == '-1':
+                    self.notifications.append(NotifyAction('me-pass', 0, 0))
+                if result > 0:
+                    if result == 1:
+                        self.notifications.append(NotifyAction('win-round', 0, 0))
+                    elif result == 2:
+                        self.notifications.append(NotifyAction('lose-round', 0, 0))
+                    elif result == 3:
+                        self.notifications.append(NotifyAction('draw-round', 0, 0))
+                    else:
+                        self.running = False
 
-                need_to_refresh = True
-
-                if result > 3:
-                    self.running = False
-
-            end_time = time.time()
-            self.timing_data["update action"].append(end_time - start_time)
+                if result < 3 and self.game.turn == 1:
+                    self.notifications.append(NotifyAction('op-turn', 0, 0))
+                elif 0 < result < 3 and self.game.turn == 0:
+                    self.notifications.append(NotifyAction('me-turn', 0, 0))
 
         if self.game.turn == 1:
-            start_time = time.time()
-
-            start_time_step = time.time()
             self.step_by_ai()
-            need_to_refresh = True
-            end_time_step = time.time()
-            self.timing_data["step call"].append(end_time_step - start_time_step)
-
-            end_time = time.time()
-            self.timing_data["update action"].append(end_time - start_time)
-
-        if need_to_refresh:
-            start_time_set_state = time.time()
-            self.game_state.set_state('normal')
-            end_time_set_state = time.time()
-            self.timing_data["set_state call"].append(end_time_set_state - start_time_set_state)
 
     def step_by_ai(self):
         if self.index_action_ai is None:
@@ -3183,47 +3268,68 @@ class MyGameGui(GameGui):
             index = random.randrange(len(actions))
             self.index_action_ai = index
             print('AI action:' + str(actions[index]))
-            start_time = time.time()
-            end_time = start_time + 2
             split = actions[index].split(',')
             if int(split[0]) > -1:
                 preview_card = Card(int(split[0]), data, self.game_state)
                 self.action_ai_draw = CardPreview(self.game_state, self.screen.get_rect(), preview_card)
-                self.preview_start_time = pygame.time.get_ticks()
+                self.ai_preview = True
             else:
-                result = self.game.step(self.game.get_index_of_action(actions[self.index_action_ai]))
-                self.index_action_ai = None
-                if result > 3:
-                    self.running = False
+                self.ai_preview = True
+                self.action_ai_draw = None
 
     def draw(self):
-        start_time = time.time()
         self.screen.blit(self.background_image, (0, 0))
-        end_time = time.time()
-        self.timing_data["screen_blit"].append(end_time - start_time)
-
-        start_time = time.time()
         self.panel_game.draw(self.screen)
-        end_time = time.time()
-        self.timing_data["panel_game_draw"].append(end_time - start_time)
+        self.draw_ai_action()
+        self.draw_notification()
+        pygame.display.flip()
 
-        if self.preview_start_time is not None:
+    def draw_ai_action(self):
+        if self.ai_preview and len(self.notifications) == 0:
+            if self.preview_start_time is None:
+                self.preview_start_time = pygame.time.get_ticks()
             elapsed_time = pygame.time.get_ticks() - self.preview_start_time
-            if elapsed_time < 500:  # 500 ms = 0.5 seconds
+            if elapsed_time < 500 and self.game.turn == 1 and not self.game_state.game_state_matrix[0][
+                147] and self.action_ai_draw is not None:
                 self.action_ai_draw.draw(self.screen)
             else:
                 self.preview_start_time = None
+                self.ai_preview = False
                 bool_actions, actions = self.game.valid_actions()
                 result = self.game.step(self.game.get_index_of_action(actions[self.index_action_ai]))
                 self.game_state.set_state('normal')
+                if actions[self.index_action_ai] == '-1':
+                    self.notifications.append(NotifyAction('op-pass', 0, 0))
+                if result > 0:
+                    if result == 1:
+                        self.notifications.append(NotifyAction('lose-round', 0, 0))
+                    elif result == 2:
+                        self.notifications.append(NotifyAction('win-round', 0, 0))
+                    elif result == 3:
+                        self.notifications.append(NotifyAction('draw-round', 0, 0))
+                    else:
+                        self.running = False
+                if result < 3 and self.game.turn == 0:
+                    self.notifications.append(NotifyAction('me-turn', 0, 0))
+                elif 0 < result < 3 and self.game.turn == 1:
+                    self.notifications.append(NotifyAction('op-turn', 0, 0))
                 self.index_action_ai = None
                 if result > 3:
                     self.running = False
 
-        start_time = time.time()
-        pygame.display.flip()
-        end_time = time.time()
-        self.timing_data["pygame_display_flip"].append(end_time - start_time)
+    def draw_notification(self):
+        if len(self.notifications) > 0:
+            first = self.notifications[0]
+            if first.start_time == 0:
+                first.start_time = pygame.time.get_ticks()
+                first.elapsed_time = pygame.time.get_ticks() - first.start_time
+                self.notification.set_notification(first.notification_name)
+                self.notification.draw(self.screen)
+            elif first.start_time != 0 and first.elapsed_time < 1000:
+                first.elapsed_time = pygame.time.get_ticks() - first.start_time
+                self.notification.draw(self.screen)
+            else:
+                self.notifications.remove(first)
 
     def print_average_times(self):
         for function, times in self.timing_data.items():
