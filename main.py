@@ -232,8 +232,11 @@ def card_strength_text(screen, card, card_x, start_y, image):
     """
     if card.strength_text is None:
         return
+    font_size = 30
 
-    font_small = ResizableFont('Arial Narrow.ttf', 20)
+    if image.get_width() / 3.1 > 30:
+        font_size = 37
+    font_small = ResizableFont('Gwent.ttf', font_size)
     text_color = (0, 0, 0)
     if card.type == 'Hero':
         text_color = (255, 255, 255)
@@ -245,6 +248,7 @@ def card_strength_text(screen, card, card_x, start_y, image):
         text_color = (106, 28, 15)
     text_rect = pygame.Rect(card_x, start_y, image.get_width() / 2.7,
                             image.get_height() / 4)
+    # textt=fit_text_in_rect(str(card.strength_text),font_small,text_color,text_rect)
     text = font_small.font.render(str(card.strength_text), True, text_color)
     draw_centered_text(screen, text, text_rect)
 
@@ -344,6 +348,7 @@ class GameState(Subject):
         self.game_state_matrix_opponent = None
         self.hovering_card = None
         self.pause_menu_option = None
+        self.main_menu_option = None
 
     def set_state(self, new_state):
         """
@@ -599,7 +604,7 @@ class Component(Observer):
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
         self.game_state = game_state
         self.game_state.register(self)
-        self.font_small = ResizableFont('Arial Narrow.ttf', 50)
+        self.font_small = ResizableFont('Gwent.ttf', 50)
 
     def render(self, screen):
         """
@@ -788,7 +793,7 @@ class RowScore(Component):
             The ratio of the RowScore's y-coordinate to its parent's height.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
-        self.font_small = ResizableFont('Arial Narrow.ttf', 24)
+        self.font_small = ResizableFont('Gwent.ttf', 24)
         self.text_color = (0, 0, 0)
         self.text_rect = pygame.Rect(self.x, self.y, self.width, self.height)
         self.text = None
@@ -1193,8 +1198,8 @@ class CardDescription(Component):
                                           (self.width // 8, self.height // 4))  # adjust as necessary
 
         # Initialize fonts
-        self.name_font = pygame.font.Font('Arial Narrow.ttf', 48)  # adjust size as necessary
-        self.desc_font = pygame.font.Font('Arial Narrow.ttf', 24)  # adjust size as necessary
+        self.name_font = pygame.font.Font('Gwent.ttf', 48)  # adjust size as necessary
+        self.desc_font = pygame.font.Font('Gwent.ttf', 24)  # adjust size as necessary
 
     def draw(self, screen):
         """
@@ -1906,7 +1911,7 @@ class Stats(Component):
             A flag that represents whether the Stats are for the opponent or the player.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
-        self.font_small = ResizableFont('Arial Narrow.ttf', 24)
+        self.font_small = ResizableFont('Gwent.ttf', 24)
         self.surface = pygame.Surface((self.width, self.height))
         self.surface.fill((20, 20, 20))
         self.surface.set_alpha(128)
@@ -2381,7 +2386,7 @@ class HandCount(Component):
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)
         self.text = 0
-        self.font_small = ResizableFont('Arial Narrow.ttf', 24)
+        self.font_small = ResizableFont('Gwent.ttf', 24)
         self.hand_count_image = pygame.image.load('img/icons/icon_card_count.png')
         self.hand_count_image = scale_surface(self.hand_count_image, (self.width, self.height))
         self.hand_count_op_text_rect = pygame.Rect(self.x + self.hand_count_image.get_width(), self.y,
@@ -2480,7 +2485,7 @@ class ScoreTotal(Component):
 
         self.image = pygame.transform.scale(self.image, (self.width, self.height))
 
-        self.font_small = ResizableFont('Arial Narrow.ttf', 24)
+        self.font_small = ResizableFont('Gwent.ttf', 24)
         self.text_color = (0, 0, 0)
         self.text_rect = pygame.Rect(self.x, self.y, self.width, self.height)
         self.text = None
@@ -2490,6 +2495,7 @@ class ScoreTotal(Component):
         self.high_score_rect = self.high_score_image.get_rect(
             topleft=(self.x + int(self.width * -0.46), self.y + int(self.height * -0.32)))
         self.high = False
+        self.score = 0
 
     def set_score(self, score, high):
         """
@@ -2504,6 +2510,7 @@ class ScoreTotal(Component):
         """
         self.text = fit_text_in_rect(str(score), self.font_small, self.text_color, self.text_rect)
         self.high = high
+        self.score = score
 
     def draw(self, screen):
         """
@@ -2560,7 +2567,7 @@ class Passed(Component):
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
                          y_ratio)  # 0% height, 0% width, positioned at 90% of the parent width, 87% of the parent height
         self.font_size = int(parent_rect.height * height_ratio)  # 16% of the stats_op height
-        self.font = ResizableFont('Arial Narrow.ttf', self.font_size)
+        self.font = ResizableFont('Gwent.ttf', self.font_size)
         self.passed_bool = False
         self.text = self.font.font.render('Passed', True, (210, 180, 140))  # RGB white color
 
@@ -2877,7 +2884,7 @@ class Deck(Component):
         screen.blit(s, (center_x - 25, center_y - 10))  # (0,0) are the top-left coordinates
 
         # Draw card count text
-        font = ResizableFont('Arial Narrow.ttf', 20)
+        font = ResizableFont('Gwent.ttf', 20)
         text_color = (255, 255, 255)
         text = font.font.render(str(len(self.cards)), True, text_color)
         draw_centered_text(screen, text, card_count_rect)
@@ -3084,7 +3091,7 @@ class NotifyComponent(Component):
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
         self.image_to_draw = None
         self.text_to_draw = None
-        self.font_small = ResizableFont('Arial Narrow.ttf', 50)
+        self.font_small = ResizableFont('Gwent.ttf', 50)
 
     def draw(self, screen):
         if self.image_to_draw is not None:
@@ -3152,6 +3159,12 @@ class ResizableFont:
         self.size = new_size
         self.font = pygame.font.Font(self.path, self.size)
 
+    def get_name(self):
+        return self.path
+
+    def get_height(self):
+        return self.size
+
 
 class PauseMenu(Component):
     def __init__(self, game_state, parent_rect):
@@ -3173,6 +3186,7 @@ class PauseMenu(Component):
         for i, (option_rect, option) in enumerate(zip(self.option_rects, self.options)):
             if i == self.current_option_index:
                 pygame.draw.rect(screen, (218, 165, 32), option_rect.rect, 3)  # draw border
+
             text = option_rect.font_small.font.render(option, True, (218, 165, 32))
             draw_centered_text(screen, text, option_rect)
 
@@ -3186,6 +3200,64 @@ class PauseMenu(Component):
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if self.current_option_index is not None:
                 self.game_state.pause_menu_option = self.current_option_index
+
+
+class MainMenu(Component):
+    def __init__(self, game_state, parent_rect):
+        super().__init__(game_state, parent_rect, 1, 1, 0, 0)
+        self.background_image = pygame.image.load('img/main_menu.jpeg')
+        self.hover_border = pygame.image.load('img/icons/borderBtn.png')
+        self.options = ['Start Game', 'Options', 'Statistics', 'Quit Game']
+        self.menu_items = []
+        self.hovered_item = None
+        self.create_menu_items()
+
+    def create_menu_items(self):
+        option_height_ratio = 0.08
+        option_width_ratio = 0.25
+        option_y_start_ratio = 0.55
+        for index, option in enumerate(self.options):
+            option_y_ratio = option_y_start_ratio + index * (option_height_ratio + 0.01)
+            option_component = Component(self.game_state, self.rect, option_width_ratio, option_height_ratio,
+                                         0.5 - option_width_ratio / 2, option_y_ratio)
+            option_component.text = option  # store text, not the rendered Surface
+            self.menu_items.append(option_component)
+
+    def draw_text_with_outline(self, screen, text, font, color, outline_color, position):
+        outline = font.render(text, True, outline_color)
+        for x_offset in [-1, 0, 1]:
+            for y_offset in [-1, 0, 1]:
+                if x_offset == 0 and y_offset == 0:
+                    continue
+                screen.blit(outline, (position[0] + x_offset, position[1] + y_offset))
+        main_text = font.render(text, True, color)
+        screen.blit(main_text, position)
+
+    def draw(self, screen):
+        screen.blit(pygame.transform.scale(self.background_image, (self.width, self.height)), (self.x, self.y))
+        for item in self.menu_items:
+            text = self.font_small.font.render(item.text, True, (218, 165, 32))
+            text_pos = text.get_rect(center=item.rect.center)
+            if item == self.hovered_item:
+                border_size = (text.get_width() + 20, text.get_height() + 100)
+                scaled_hover_border = scale_surface(self.hover_border, border_size)
+                border_pos = scaled_hover_border.get_rect(center=text_pos.center)
+                screen.blit(scaled_hover_border, border_pos.topleft)
+                self.draw_text_with_outline(screen, item.text, self.font_small.font, (218, 165, 32), (0, 0, 0),
+                                            text_pos.topleft)
+            else:
+                self.draw_text_with_outline(screen, item.text, self.font_small.font, (218, 165, 32), (0, 0, 0),
+                                            text_pos.topleft)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEMOTION:
+            self.hovered_item = None
+            for item in self.menu_items:
+                if item.rect.collidepoint(event.pos):
+                    self.hovered_item = item
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if self.hovered_item is not None:
+                self.game_state.main_menu_option = self.menu_items.index(self.hovered_item)
 
 
 class GameGui:
@@ -3228,6 +3300,7 @@ class MyGameGui(GameGui):
         super().__init__()
         self.panel_game = PanelGame(self.game_state, self.screen.get_rect())
         self.pause_menu = PauseMenu(self.game_state, self.screen.get_rect())
+        self.main_menu = MainMenu(self.game_state, self.screen.get_rect())
         self.game_state.set_state('normal')
 
     def run(self):
@@ -3253,6 +3326,8 @@ class MyGameGui(GameGui):
                 self.panel_game.handle_event(event)
             elif self.game_state.state in ['menu']:
                 self.pause_menu.handle_event(event)
+            elif self.game_state.state in ['main menu']:
+                self.main_menu.handle_event(event)
 
     def update(self):
         if self.game_state.state in ['normal', 'dragging', 'carousel']:
@@ -3299,6 +3374,18 @@ class MyGameGui(GameGui):
                 elif action == 1:
                     self.restart_game()
                 elif action == 2:
+                    self.game_state.set_state('main menu')
+                elif action == 3:
+                    self.running = False
+        if self.game_state.state in ['main menu']:
+            action = self.game_state.main_menu_option
+            self.game_state.main_menu_option = None
+            if action is not None:
+                if action == 0:
+                    pass
+                elif action == 1:
+                    pass
+                elif action == 2:
                     pass
                 elif action == 3:
                     self.running = False
@@ -3326,6 +3413,8 @@ class MyGameGui(GameGui):
         elif self.game_state.state in ['menu']:
             self.panel_game.draw(self.screen)
             self.pause_menu.draw(self.screen)
+        elif self.game_state.state in ['main menu']:
+            self.main_menu.draw(self.screen)
 
         pygame.display.flip()
 
