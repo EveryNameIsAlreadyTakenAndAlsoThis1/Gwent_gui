@@ -213,6 +213,17 @@ def draw_centered_text(screen, text, rect):
     screen.blit(text, (pos_x, pos_y))
 
 
+def draw_text_with_outline(screen, text, font, color, outline_color, position, thickness=1):
+    outline = font.render(text, True, outline_color)
+    for x_offset in range(-thickness, thickness + 1):
+        for y_offset in range(-thickness, thickness + 1):
+            if x_offset == 0 and y_offset == 0:
+                continue
+            screen.blit(outline, (position[0] + x_offset, position[1] + y_offset))
+    main_text = font.render(text, True, color)
+    screen.blit(main_text, position)
+
+
 def card_strength_text(screen, card, card_x, start_y, image):
     """
     Draws the strength text of a card if it exists.
@@ -232,11 +243,11 @@ def card_strength_text(screen, card, card_x, start_y, image):
     """
     if card.strength_text is None:
         return
-    font_size = 30
+    font_size = 24
 
     if image.get_width() / 3.1 > 30:
-        font_size = 37
-    font_small = ResizableFont('Gwent.ttf', font_size)
+        font_size = 31
+    font_small = ResizableFont('Arial Narrow.ttf', font_size)
     text_color = (0, 0, 0)
     if card.type == 'Hero':
         text_color = (255, 255, 255)
@@ -248,7 +259,6 @@ def card_strength_text(screen, card, card_x, start_y, image):
         text_color = (106, 28, 15)
     text_rect = pygame.Rect(card_x, start_y, image.get_width() / 2.7,
                             image.get_height() / 4)
-    # textt=fit_text_in_rect(str(card.strength_text),font_small,text_color,text_rect)
     text = font_small.font.render(str(card.strength_text), True, text_color)
     draw_centered_text(screen, text, text_rect)
 
@@ -797,6 +807,7 @@ class RowScore(Component):
         self.text_color = (0, 0, 0)
         self.text_rect = pygame.Rect(self.x, self.y, self.width, self.height)
         self.text = None
+        self.score = '0'
 
     def set_score(self, score):
         """
@@ -811,6 +822,7 @@ class RowScore(Component):
             The score to be displayed.
         """
         self.text = fit_text_in_rect(str(score), self.font_small, self.text_color, self.text_rect)
+        self.score = str(score)
 
     def draw(self, screen):
         """
@@ -824,7 +836,12 @@ class RowScore(Component):
             The Surface onto which the score text will be drawn.
         """
         if self.text:
-            draw_centered_text(screen, self.text, self.text_rect)
+            pos_x = self.text_rect.x + (self.text_rect.width - self.text.get_width()) // 2
+            pos_y = self.text_rect.y + (self.text_rect.height - self.text.get_height()) // 2
+
+            # Draw the outlined text at the calculated position
+            draw_text_with_outline(screen, self.score, self.font_small.font, self.text_color, (255, 255, 255),
+                                   (pos_x, pos_y), thickness=2)
 
 
 class FieldRow(Component):
@@ -2495,7 +2512,7 @@ class ScoreTotal(Component):
         self.high_score_rect = self.high_score_image.get_rect(
             topleft=(self.x + int(self.width * -0.46), self.y + int(self.height * -0.32)))
         self.high = False
-        self.score = 0
+        self.score = '0'
 
     def set_score(self, score, high):
         """
@@ -2510,7 +2527,7 @@ class ScoreTotal(Component):
         """
         self.text = fit_text_in_rect(str(score), self.font_small, self.text_color, self.text_rect)
         self.high = high
-        self.score = score
+        self.score = str(score)
 
     def draw(self, screen):
         """
@@ -2525,7 +2542,13 @@ class ScoreTotal(Component):
         if self.high:
             screen.blit(self.high_score_image, self.high_score_rect)
         if self.text:
-            draw_centered_text(screen, self.text, self.text_rect)
+            # Determine the position to center the text
+            pos_x = self.text_rect.x + (self.text_rect.width - self.text.get_width()) // 2
+            pos_y = self.text_rect.y + (self.text_rect.height - self.text.get_height()) // 2
+
+            # Draw the outlined text at the calculated position
+            draw_text_with_outline(screen, self.score, self.font_small.font, self.text_color, (255, 255, 255),
+                                   (pos_x, pos_y), thickness=2)
 
 
 class Passed(Component):
@@ -3223,16 +3246,6 @@ class MainMenu(Component):
             option_component.text = option  # store text, not the rendered Surface
             self.menu_items.append(option_component)
 
-    def draw_text_with_outline(self, screen, text, font, color, outline_color, position):
-        outline = font.render(text, True, outline_color)
-        for x_offset in [-1, 0, 1]:
-            for y_offset in [-1, 0, 1]:
-                if x_offset == 0 and y_offset == 0:
-                    continue
-                screen.blit(outline, (position[0] + x_offset, position[1] + y_offset))
-        main_text = font.render(text, True, color)
-        screen.blit(main_text, position)
-
     def draw(self, screen):
         screen.blit(pygame.transform.scale(self.background_image, (self.width, self.height)), (self.x, self.y))
         for item in self.menu_items:
@@ -3243,11 +3256,11 @@ class MainMenu(Component):
                 scaled_hover_border = scale_surface(self.hover_border, border_size)
                 border_pos = scaled_hover_border.get_rect(center=text_pos.center)
                 screen.blit(scaled_hover_border, border_pos.topleft)
-                self.draw_text_with_outline(screen, item.text, self.font_small.font, (218, 165, 32), (0, 0, 0),
-                                            text_pos.topleft)
+                draw_text_with_outline(screen, item.text, self.font_small.font, (218, 165, 32), (0, 0, 0),
+                                       text_pos.topleft, 2)
             else:
-                self.draw_text_with_outline(screen, item.text, self.font_small.font, (218, 165, 32), (0, 0, 0),
-                                            text_pos.topleft)
+                draw_text_with_outline(screen, item.text, self.font_small.font, (218, 165, 32), (0, 0, 0),
+                                       text_pos.topleft, 2)
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEMOTION:
