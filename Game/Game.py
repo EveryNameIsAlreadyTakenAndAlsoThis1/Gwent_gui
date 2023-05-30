@@ -72,8 +72,8 @@ class Game:
                 1: Player in current turn won round.
                 2: Opponent won round.
                 3: The round ended in a tie.
-                4: Player in current turn won the game.
-                5: Opponent won the game.
+                4: Player in current turn lost the game
+                5: Player in current turn won the game
                 6: The game ended in a tie.
 
         Raises:

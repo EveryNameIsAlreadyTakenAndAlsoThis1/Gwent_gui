@@ -359,6 +359,10 @@ class GameState(Subject):
         self.hovering_card = None
         self.pause_menu_option = None
         self.main_menu_option = None
+        self.end_game_option = None
+        self.end_state = None
+        self.results_player = ['0', '0', '0']
+        self.results_opponent = ['0', '0', '0']
 
     def set_state(self, new_state):
         """
@@ -372,6 +376,20 @@ class GameState(Subject):
         self.state = new_state
         self.hovering_card = None
         self.notify()
+
+    def clear(self):
+        self.state = 'normal'
+        self.parameter = None
+        self.parameter_actions = []
+        self.game_state_matrix = None
+        self.game_state_matrix_opponent = None
+        self.hovering_card = None
+        self.pause_menu_option = None
+        self.main_menu_option = None
+        self.end_game_option = None
+        self.end_state = None
+        self.results_player = ['0', '0', '0']
+        self.results_opponent = ['0', '0', '0']
 
 
 class Card:
@@ -2794,9 +2812,14 @@ class Grave(Component):
         """
         if len(self.cards) > 0:
             for i, card in enumerate(self.cards):
-                card_image = scale_surface(card.image, (self.width * 0.9, self.height * 0.9))
-                x_position = self.x - i + (self.width - card_image.get_width()) // 2
-                y_position = self.y - i + (self.height - card_image.get_height()) // 2
+                card_image = scale_surface(card.image, (self.width, self.height))
+
+                if i % 2 == 0 and i != 0:
+                    x_position = self.x + 5 - i / 2
+                    y_position = self.y - i / 2
+                else:
+                    x_position = self.x + 5 - (i - 1) / 2
+                    y_position = self.y - (i - 1) / 2
 
                 # Ensuring the card does not go beyond the container's dimensions
                 x_position = max(x_position, 0)
@@ -2887,9 +2910,13 @@ class Deck(Component):
 
         if len(self.cards) > 0:
             for i, card in enumerate(self.cards):
-                card_image = scale_surface(card.image, (self.width * 0.9, self.height * 0.9))
-                x_position = self.x - i + (self.width - card_image.get_width()) // 2
-                y_position = self.y - i + (self.height - card_image.get_height()) // 2
+                card_image = scale_surface(card.image, (self.width, self.height))
+                if i % 2 == 0 and i != 0:
+                    x_position = self.x + 5 - i / 2
+                    y_position = self.y - i / 2
+                else:
+                    x_position = self.x + 5 - (i - 1) / 2
+                    y_position = self.y - (i - 1) / 2
                 center_x = x_position + card_image.get_width() / 2
                 center_y = y_position + card_image.get_height() / 2
 
@@ -2908,7 +2935,7 @@ class Deck(Component):
 
         # Draw card count text
         font = ResizableFont('Gwent.ttf', 20)
-        text_color = (255, 255, 255)
+        text_color = (218, 165, 32)
         text = font.font.render(str(len(self.cards)), True, text_color)
         draw_centered_text(screen, text, card_count_rect)
 
@@ -3273,6 +3300,131 @@ class MainMenu(Component):
                 self.game_state.main_menu_option = self.menu_items.index(self.hovered_item)
 
 
+class PanelEnd(Component):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+
+        # Load the background images
+        self.background_win = pygame.image.load(f'img/icons/end_win.png')
+        self.background_lose = pygame.image.load(f'img/icons/end_lose.png')
+        self.background_draw = pygame.image.load(f'img/icons/end_draw.png')
+        self.background = None
+        self.hover_border = pygame.image.load('img/icons/borderBtn.png')
+
+        # Initialize the button attributes
+        self.options = ['Restart Game', 'Main Menu']
+        self.menu_items = []
+        self.hovered_item = None
+        self.create_menu_items()
+
+    def draw(self, screen):
+        if self.background is None:
+            if self.game_state.end_state == 'win':
+                self.background = self.background_win
+            elif self.game_state.end_state == 'lose':
+                self.background = self.background_lose
+            elif self.game_state.end_state == 'draw':
+                self.background = self.background_draw
+            else:
+                return
+        screen.fill((0, 0, 0))
+        # Scale the background image to be as wide as the screen and centered
+        background_scaled = scale_surface(self.background, (self.width, self.height * 0.5))
+
+        # Initialize the table with the same size as the background image
+        self.table = pygame.Surface((background_scaled.get_width() / 2, background_scaled.get_height() / 3))
+
+        # Compute the table position such that it's horizontally centered and right below the background image
+        table_top = self.y + background_scaled.get_height()
+        table_left = (self.width - background_scaled.get_width()) / 2 + background_scaled.get_width() / 4
+        self.table_rect = pygame.Rect(table_left, table_top, background_scaled.get_width() / 2,
+                                      background_scaled.get_height() / 3)
+
+        # Draw the background and the table
+        screen.blit(background_scaled, ((self.width - background_scaled.get_width()) / 2, self.y))
+        # Draw the table contents
+        self.draw_table_contents()
+        screen.blit(self.table, self.table_rect.topleft)
+
+        # Draw buttons
+        for item in self.menu_items:
+            text = self.font_small.font.render(item.text, True, (218, 165, 32))
+            text_pos = text.get_rect(center=item.rect.center)
+            if item == self.hovered_item:
+                border_size = (text.get_width() + 20, text.get_height() + 100)
+                scaled_hover_border = scale_surface(self.hover_border, border_size)
+                border_pos = scaled_hover_border.get_rect(center=text_pos.center)
+                screen.blit(scaled_hover_border, border_pos.topleft)
+                draw_text_with_outline(screen, item.text, self.font_small.font, (218, 165, 32), (0, 0, 0),
+                                       text_pos.topleft, 2)
+            else:
+                draw_text_with_outline(screen, item.text, self.font_small.font, (218, 165, 32), (0, 0, 0),
+                                       text_pos.topleft, 2)
+
+    def create_menu_items(self):
+        option_height_ratio = 0.08
+        option_width_ratio = 0.25
+        option_y_start_ratio = 0.75  # Adjust this ratio to move the buttons vertically
+        for index, option in enumerate(self.options):
+            option_y_ratio = option_y_start_ratio + index * (option_height_ratio + 0.01)
+            option_component = Component(self.game_state, self.rect, option_width_ratio, option_height_ratio,
+                                         0.5 - option_width_ratio / 2, option_y_ratio)
+            option_component.text = option  # store text, not the rendered Surface
+            self.menu_items.append(option_component)
+
+    def draw_table_contents(self):
+        font = ResizableFont('Gwent.ttf', 20)
+        text_color = (218, 165, 32)
+        border_color = (255, 255, 255)
+
+        cell_width = self.table.get_width() / 4
+        cell_height = self.table.get_height() / 3
+
+        headers = ["", "Round 1", "Round 2", "Round 3"]
+        results_player = self.game_state.results_player
+        results_opponent = self.game_state.results_opponent
+
+        # Draw the headers
+        for col in range(4):
+            x = col * cell_width
+            text = font.font.render(headers[col], True, text_color)
+            text_rect = text.get_rect(center=(x + cell_width / 2, cell_height / 2))
+            self.table.blit(text, text_rect)
+
+        # Draw the player results
+        text = font.font.render("Player", True, text_color)
+        text_rect = text.get_rect(center=(cell_width / 2, 1.5 * cell_height))
+        self.table.blit(text, text_rect)
+        for col in range(1, 4):
+            x = col * cell_width
+            y = cell_height
+            text = font.font.render(str(results_player[col - 1]), True, text_color)
+            text_rect = text.get_rect(center=(x + cell_width / 2, y + cell_height / 2))
+            self.table.blit(text, text_rect)
+
+        # Draw the opponent results
+        text = font.font.render("Opponent", True, text_color)
+        text_rect = text.get_rect(center=(cell_width / 2, 2.5 * cell_height))
+        self.table.blit(text, text_rect)
+        for col in range(1, 4):
+            x = col * cell_width
+            y = 2 * cell_height
+            text = font.font.render(str(results_opponent[col - 1]), True, text_color)
+            text_rect = text.get_rect(center=(x + cell_width / 2, y + cell_height / 2))
+            self.table.blit(text, text_rect)
+
+    def handle_event(self, event):
+
+        if event.type == pygame.MOUSEMOTION:
+            self.hovered_item = None
+            for item in self.menu_items:
+                if item.rect.collidepoint(event.pos):
+                    self.hovered_item = item
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if self.hovered_item is not None:
+                self.game_state.end_game_option = self.menu_items.index(self.hovered_item)
+
+
 class GameGui:
     def __init__(self, fps=60):
         pygame.init()
@@ -3306,6 +3458,7 @@ class GameGui:
         self.notification = Notify(self.game_state, self.screen.get_rect(), 1, 0.14, 0, 0.43)
         self.notifications = []
         self.ai_preview = False
+        self.round_index = 0
 
 
 class MyGameGui(GameGui):
@@ -3314,6 +3467,8 @@ class MyGameGui(GameGui):
         self.panel_game = PanelGame(self.game_state, self.screen.get_rect())
         self.pause_menu = PauseMenu(self.game_state, self.screen.get_rect())
         self.main_menu = MainMenu(self.game_state, self.screen.get_rect())
+        self.panel_end = PanelEnd(self.game_state, self.screen.get_rect(), 1, 1, 0, 0)
+        self.game_state.end_state = 'win'
         self.game_state.set_state('normal')
 
     def run(self):
@@ -3341,6 +3496,8 @@ class MyGameGui(GameGui):
                 self.pause_menu.handle_event(event)
             elif self.game_state.state in ['main menu']:
                 self.main_menu.handle_event(event)
+            elif self.game_state.state in ['end screen']:
+                self.panel_end.handle_event(event)
 
     def update(self):
         if self.game_state.state in ['normal', 'dragging', 'carousel']:
@@ -3356,7 +3513,8 @@ class MyGameGui(GameGui):
                 self.game_state.parameter_actions.clear()
                 self.game_state.parameter = None
                 if action is not None and self.game.turn == 0:
-                    print('Player action: ' + action_a)
+                    player_score = int(self.game_state.game_state_matrix[0][145])
+                    opponent_score = int(self.game_state.game_state_matrix[0][146])
                     result = self.game.step(action)
                     self.game_state.set_state('normal')
                     if action_a == '-1':
@@ -3364,12 +3522,36 @@ class MyGameGui(GameGui):
                     if result > 0:
                         if result == 1:
                             self.notifications.append(NotifyAction('win-round', 0, 0))
+                            self.game_state.results_player[self.round_index] = player_score
+                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.round_index += 1
                         elif result == 2:
                             self.notifications.append(NotifyAction('lose-round', 0, 0))
+                            self.game_state.results_player[self.round_index] = player_score
+                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.round_index += 1
                         elif result == 3:
                             self.notifications.append(NotifyAction('draw-round', 0, 0))
+                            self.game_state.results_player[self.round_index] = player_score
+                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.round_index += 1
                         else:
-                            self.running = False
+                            if result == 4:
+                                self.game_state.end_state = 'lose'
+                                self.game_state.results_player[self.round_index] = player_score
+                                self.game_state.results_opponent[self.round_index] = opponent_score
+                                self.round_index += 1
+                            elif result == 5:
+                                self.game_state.end_state = 'win'
+                                self.game_state.results_player[self.round_index] = player_score
+                                self.game_state.results_opponent[self.round_index] = opponent_score
+                                self.round_index += 1
+                            else:
+                                self.game_state.end_state = 'draw'
+                                self.game_state.results_player[self.round_index] = player_score
+                                self.game_state.results_opponent[self.round_index] = opponent_score
+                                self.round_index += 1
+                            self.game_state.set_state('end screen')
 
                     if result < 3 and self.game.turn == 1:
                         self.notifications.append(NotifyAction('op-turn', 0, 0))
@@ -3402,13 +3584,21 @@ class MyGameGui(GameGui):
                     pass
                 elif action == 3:
                     self.running = False
+        if self.game_state.state in ['end screen']:
+            action = self.game_state.end_game_option
+            self.game_state.end_game_option = None
+            if action is not None:
+                if action == 0:
+                    self.restart_game()
+
+                elif action == 1:
+                    self.game_state.set_state('main menu')
 
     def step_by_ai(self):
         if self.index_action_ai is None:
             bool_actions, actions = self.game.valid_actions()
             index = random.randrange(len(actions))
             self.index_action_ai = index
-            print('AI action:' + str(actions[index]))
             split = actions[index].split(',')
             if int(split[0]) > -1:
                 preview_card = Card(int(split[0]), data, self.game_state)
@@ -3428,7 +3618,8 @@ class MyGameGui(GameGui):
             self.pause_menu.draw(self.screen)
         elif self.game_state.state in ['main menu']:
             self.main_menu.draw(self.screen)
-
+        elif self.game_state.state in ['end screen']:
+            self.panel_end.draw(self.screen)
         pygame.display.flip()
 
     def draw_ai_action(self):
@@ -3443,6 +3634,8 @@ class MyGameGui(GameGui):
                 self.preview_start_time = None
                 self.ai_preview = False
                 bool_actions, actions = self.game.valid_actions()
+                player_score = int(self.game_state.game_state_matrix[0][145])
+                opponent_score = int(self.game_state.game_state_matrix[0][146])
                 result = self.game.step(self.game.get_index_of_action(actions[self.index_action_ai]))
                 self.game_state.set_state('normal')
                 if actions[self.index_action_ai] == '-1':
@@ -3450,19 +3643,41 @@ class MyGameGui(GameGui):
                 if result > 0:
                     if result == 1:
                         self.notifications.append(NotifyAction('lose-round', 0, 0))
+                        self.game_state.results_player[self.round_index] = player_score
+                        self.game_state.results_opponent[self.round_index] = opponent_score
+                        self.round_index += 1
                     elif result == 2:
                         self.notifications.append(NotifyAction('win-round', 0, 0))
+                        self.game_state.results_player[self.round_index] = player_score
+                        self.game_state.results_opponent[self.round_index] = opponent_score
+                        self.round_index += 1
                     elif result == 3:
                         self.notifications.append(NotifyAction('draw-round', 0, 0))
+                        self.game_state.results_player[self.round_index] = player_score
+                        self.game_state.results_opponent[self.round_index] = opponent_score
+                        self.round_index += 1
                     else:
-                        self.running = False
+                        if result == 4:
+                            self.game_state.end_state = 'win'
+                            self.game_state.results_player[self.round_index] = player_score
+                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.round_index += 1
+                        elif result == 5:
+                            self.game_state.end_state = 'lose'
+                            self.game_state.results_player[self.round_index] = player_score
+                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.round_index += 1
+                        else:
+                            self.game_state.end_state = 'draw'
+                            self.game_state.results_player[self.round_index] = player_score
+                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.round_index += 1
+                        self.game_state.set_state('end screen')
                 if result < 3 and self.game.turn == 0:
                     self.notifications.append(NotifyAction('me-turn', 0, 0))
                 elif 0 < result < 3 and self.game.turn == 1:
                     self.notifications.append(NotifyAction('op-turn', 0, 0))
                 self.index_action_ai = None
-                if result > 3:
-                    self.running = False
 
     def draw_notification(self):
         if len(self.notifications) > 0:
@@ -3490,7 +3705,7 @@ class MyGameGui(GameGui):
     def restart_game(self):
         self.running = True
         self.game = Game(self.cards)
-        self.game_state = GameState()
+        self.game_state.clear()
         self.game_state.game_state_matrix = self.game.game_state_matrix.state_matrix_0
         self.game_state.game_state_matrix_opponent = self.game.game_state_matrix.state_matrix_1
         self.preview_start_time = None
@@ -3499,8 +3714,10 @@ class MyGameGui(GameGui):
         self.notification = Notify(self.game_state, self.screen.get_rect(), 1, 0.14, 0, 0.43)
         self.notifications = []
         self.ai_preview = False
+        self.round_index = 0
         self.panel_game = PanelGame(self.game_state, self.screen.get_rect())
         self.pause_menu = PauseMenu(self.game_state, self.screen.get_rect())
+        self.panel_end = PanelEnd(self.game_state, self.screen.get_rect(), 1, 1, 0, 0)
         self.game_state.set_state('normal')
 
 
