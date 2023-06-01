@@ -3425,6 +3425,88 @@ class PanelEnd(Component):
                 self.game_state.end_game_option = self.menu_items.index(self.hovered_item)
 
 
+class PanelStart(Component):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+        self.background = pygame.image.load(f'img/start_menu_background.jpeg')
+        self.side_panel = pygame.image.load(f'img/side_panel.png')
+        self.background_scaled = pygame.transform.scale(self.background, (self.width, self.height))
+        self.scroll_image = pygame.image.load(f'img/panel_inside.png')
+        self.scroll_image_scaled = scale_surface(self.scroll_image,
+                                                 (self.side_panel.get_width() / 2, self.side_panel.get_height()))
+        self.hover_border = pygame.image.load(f'img/icons/borderBtn.png')
+        self.items = ['Deck {}'.format(i) for i in range(1, 21)]
+        self.item_height = 80  # Replace this with your desired item height
+        self.scroll_speed = 10  # Replace this with your desired scroll speed
+        self.font = ResizableFont('Gwent.ttf', 35)
+
+        self.scrollable_surface = pygame.Surface(
+            (self.scroll_image_scaled.get_width(), len(self.items) * self.item_height), pygame.SRCALPHA)
+        self.visible_area = pygame.Rect(0, 0, self.scroll_image_scaled.get_width(),
+                                        self.scroll_image_scaled.get_height())
+        self.hovered_item = None
+        self.selected_item = None
+        self.scroll_x = self.x + self.side_panel.get_width() / 4
+        self.scroll_y = self.y + self.side_panel.get_height() / 2
+
+    def draw(self, screen):
+        screen.blit(self.background_scaled, (self.x, self.y))
+        screen.blit(self.side_panel, (self.x, self.y))
+
+        self.scrollable_surface.fill((0, 0, 0, 0))  # Clear the surface with a transparent color
+        for i, item in enumerate(self.items):
+            item_rect = pygame.Rect(0, i * self.item_height, self.scrollable_surface.get_width(), self.item_height)
+            if item == self.hovered_item or item == self.selected_item:
+                pygame.draw.rect(self.scrollable_surface, (20, 20, 20, 100), item_rect)  # Highlight hovered item
+                border_size = (item_rect.width + 20, item_rect.height + 20)
+                scaled_hover_border = scale_surface(self.hover_border, border_size)
+                border_pos = scaled_hover_border.get_rect(center=item_rect.center)
+                self.scrollable_surface.blit(scaled_hover_border, border_pos.topleft)  # Add the border image
+            else:
+                pygame.draw.rect(self.scrollable_surface, (20, 20, 20, 100), item_rect)  # Make other items less opaque
+
+            text_position = item_rect.center
+            # Draw the text outline
+            for x_offset in range(-1, 2):
+                for y_offset in range(-1, 2):
+                    if x_offset == 0 and y_offset == 0:
+                        continue
+                    outline_position = (text_position[0] + x_offset, text_position[1] + y_offset)
+                    outline_surface = self.font.font.render(item, True, (0, 0, 0))
+                    self.scrollable_surface.blit(outline_surface, outline_surface.get_rect(center=outline_position))
+
+            # Draw the main text
+            item_surface = self.font.font.render(item, True, (218, 165, 32))
+            self.scrollable_surface.blit(item_surface, item_surface.get_rect(center=text_position))
+
+        screen.blit(self.scroll_image_scaled, (self.scroll_x, self.scroll_y))
+        screen.blit(self.scrollable_surface, (self.scroll_x, self.scroll_y), area=self.visible_area)
+
+    def handle_event(self, event):
+        mouse_pos = pygame.mouse.get_pos()
+        mouse_x, mouse_y = mouse_pos
+        mouse_y -= self.scroll_y
+        self.hovered_item = None
+        if self.scroll_image_scaled.get_rect(topleft=(self.scroll_x, self.scroll_y)).collidepoint(mouse_pos):
+            for i in range(self.visible_area.y // self.item_height,
+                           min(len(self.items),
+                               (self.visible_area.y + self.visible_area.height) // self.item_height)):
+                item_rect = pygame.Rect(self.scroll_x, i * self.item_height - self.visible_area.y,
+                                        self.scroll_image_scaled.get_width(), self.item_height)
+                if item_rect.collidepoint((mouse_x, mouse_y)):
+                    self.hovered_item = self.items[i]
+                    break
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            max_scroll = max(0, self.scrollable_surface.get_height() - self.visible_area.height)
+            if event.button == 4:  # Scroll up.
+                self.visible_area.y = max(0, self.visible_area.y - self.scroll_speed)
+            elif event.button == 5:  # Scroll down.
+                self.visible_area.y = min(max_scroll, self.visible_area.y + self.scroll_speed)
+            elif event.button == 1 and self.hovered_item is not None:
+                self.selected_item = self.hovered_item
+
+
 class GameGui:
     def __init__(self, fps=60):
         pygame.init()
@@ -3468,6 +3550,7 @@ class MyGameGui(GameGui):
         self.pause_menu = PauseMenu(self.game_state, self.screen.get_rect())
         self.main_menu = MainMenu(self.game_state, self.screen.get_rect())
         self.panel_end = PanelEnd(self.game_state, self.screen.get_rect(), 1, 1, 0, 0)
+        self.panel_start = PanelStart(self.game_state, self.screen.get_rect(), 1, 1, 0, 0)
         self.game_state.end_state = 'win'
         self.game_state.set_state('normal')
 
@@ -3498,6 +3581,8 @@ class MyGameGui(GameGui):
                 self.main_menu.handle_event(event)
             elif self.game_state.state in ['end screen']:
                 self.panel_end.handle_event(event)
+            elif self.game_state.state in ['start screen']:
+                self.panel_start.handle_event(event)
 
     def update(self):
         if self.game_state.state in ['normal', 'dragging', 'carousel']:
@@ -3577,7 +3662,7 @@ class MyGameGui(GameGui):
             self.game_state.main_menu_option = None
             if action is not None:
                 if action == 0:
-                    pass
+                    self.game_state.set_state('start screen')
                 elif action == 1:
                     pass
                 elif action == 2:
@@ -3620,6 +3705,8 @@ class MyGameGui(GameGui):
             self.main_menu.draw(self.screen)
         elif self.game_state.state in ['end screen']:
             self.panel_end.draw(self.screen)
+        elif self.game_state.state in ['start screen']:
+            self.panel_start.draw(self.screen)
         pygame.display.flip()
 
     def draw_ai_action(self):
