@@ -352,6 +352,7 @@ class GameState(Subject):
         """
         super().__init__()
         self.state = 'normal'
+        self.previous_state = None
         self.parameter = None
         self.parameter_actions = []
         self.game_state_matrix = None
@@ -361,6 +362,8 @@ class GameState(Subject):
         self.main_menu_option = None
         self.end_game_option = None
         self.end_state = None
+        self.ai = True
+        self.developer_tools = True
         self.results_player = ['0', '0', '0']
         self.results_opponent = ['0', '0', '0']
 
@@ -1626,6 +1629,7 @@ class PanelMiddle(Component):
         self.field_op = Field(game_state, self, 1, 0.385, 0, 0, True, False)
         self.field_me = Field(game_state, self, 1, 0.385, 0, 0.388, False, False)
         self.field_hand = Field(game_state, self, 0.938, 0.13, 0.062, 0.775, False, True)
+        self.developer_tools = PanelDeveloperTools(game_state, self, 1, 0.1, 0, 0.9)
         self.field_list.append(self.field_op)
         self.field_list.append(self.field_me)
         self.field_list.append(self.field_hand)
@@ -1641,6 +1645,7 @@ class PanelMiddle(Component):
         """
         # Get the mouse cursor position
         mouse_pos = pygame.mouse.get_pos()
+
         for field in self.field_list:
             if not field.rect.collidepoint(mouse_pos):
                 field.draw(screen)
@@ -1648,10 +1653,53 @@ class PanelMiddle(Component):
             if field.rect.collidepoint(mouse_pos):
                 field.draw(screen)
 
+        if self.game_state.developer_tools:
+            self.developer_tools.draw(screen)
+
     def handle_event(self, event):
         if self.game_state.state != 'carousel':
             for field in self.field_list:
                 field.handle_event(event)
+            if self.game_state.developer_tools:
+                self.developer_tools.handle_event(event)
+
+
+class PanelDeveloperTools(Component):
+
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
+        super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
+
+        self.buttons = []
+        self.font = pygame.font.Font(None, 36)  # Adjust font size as needed
+
+        functionalities = ["Switch view", "Function 2", "Function 3"]
+
+        rect_height = self.rect.height // len(functionalities)
+        for i, func in enumerate(functionalities):
+            rect = pygame.Rect(self.rect.x, self.rect.y + i * rect_height, self.rect.width, rect_height)
+            self.buttons.append((rect, func))
+
+    def draw(self, screen):
+        for rect, func_name in self.buttons:
+            # Draw rectangle
+            #pygame.draw.rect(screen, (200, 200, 200), rect)
+
+            # Draw text
+            text_surface = self.font.render(func_name, True, (0, 0, 0))
+            text_rect = text_surface.get_rect(center=rect.center)
+            screen.blit(text_surface, text_rect)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:  # Left click
+            pos = event.pos
+            for rect, func_name in self.buttons:
+                if rect.collidepoint(pos):
+                    print(f"{func_name} was clicked!")
+                    if func_name == 'Switch view':
+                        temp = self.game_state.game_state_matrix
+                        self.game_state.game_state_matrix = self.game_state.game_state_matrix_opponent
+                        self.game_state.game_state_matrix_opponent = temp
+                        self.game_state.set_state('normal')
 
 
 class PanelRight(Component):
@@ -3507,6 +3555,110 @@ class PanelStart(Component):
                 self.selected_item = self.hovered_item
 
 
+class ConsolePanel(Component):
+    def __init__(self, game_state, screen_rect):
+        super().__init__(game_state, screen_rect, 1, 1, 0,
+                         0)
+        self.game_state = game_state
+        self.commands_history = []
+        self.commands = {
+            'quit': self.quit_game,
+            'clear': self.clear_console,
+            'give': self.give_card,
+            'step': self.step,
+            'tools': self.tools,
+            'ai': self.ai,
+        }
+        self.current_input = ""
+        self.font = pygame.font.Font(None, 36)
+        self.console_color = (50, 50, 50)
+        self.text_color = (255, 255, 255)
+
+    def draw(self, screen):
+        # Draw the console rectangle
+        pygame.draw.rect(screen, self.console_color, self.rect)
+
+        # Draw previously entered commands
+        y_offset = 10  # Start position for text rendering
+        for command in self.commands_history[
+                       -self.rect.height // 40:]:  # Adjust the slicing based on font size and rect height
+            text_surface = self.font.render(command, True, self.text_color)
+            screen.blit(text_surface, (self.rect.x + 10, self.rect.y + y_offset))
+            y_offset += 40  # Adjust based on font size and desired spacing
+
+        # Draw the current input
+        input_surface = self.font.render(self.current_input, True, self.text_color)
+        screen.blit(input_surface, (self.rect.x + 10, self.rect.y + self.rect.height - 40))
+
+    def handle_event(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+                # Process the current input
+                self.process_command(self.current_input)
+                self.current_input = ""
+            elif event.key == pygame.K_BACKSPACE:
+                self.current_input = self.current_input[:-1]
+            else:
+                # Add typed character to current input
+                if event.key is not pygame.K_BACKQUOTE:
+                    self.current_input += event.unicode
+
+    def process_command(self, command_str):
+        # Split the command string into words
+        words = command_str.split()
+
+        # The first word is the command, the rest are parameters
+        command, *params = words
+
+        # Store the command for later display
+        self.commands_history.append(command_str)
+
+        # Get the command function from the dictionary
+        func = self.commands.get(command)
+
+        # If the command is not found, print an error message
+        if func is None:
+            print(f"Unknown command: {command}")
+            return
+
+        # Call the command function with the parameters
+        try:
+            func(*params)
+        except Exception as e:
+            print(f"Error executing command: {str(e)}")
+
+    def quit_game(self):
+        print("Quitting the game...")
+        # Add your game quitting logic here
+
+    def clear_console(self):
+        print("Clearing the console...")
+        # Add your console clearing logic here
+        self.commands_history.clear()
+
+    def give_card(self, player_id, card_id):
+        print(f"Giving card {card_id} to player {player_id}...")
+        # Add your card giving logic here
+
+    def step(self, mode):
+        print(f"Setting step mode to {mode}...")
+        # Add your step setting logic here
+
+    def tools(self, mode):
+        print("Developer tools...")
+        # Add your switching logic here
+        if mode == 'on':
+            self.game_state.developer_tools = True
+        elif mode == 'off':
+            self.game_state.developer_tools = False
+
+    def ai(self, mode):
+        if mode == 'on':
+            self.game_state.ai = True
+        elif mode == 'off':
+            self.game_state.ai = False
+
+
 class GameGui:
     def __init__(self, fps=60):
         pygame.init()
@@ -3551,6 +3703,7 @@ class MyGameGui(GameGui):
         self.main_menu = MainMenu(self.game_state, self.screen.get_rect())
         self.panel_end = PanelEnd(self.game_state, self.screen.get_rect(), 1, 1, 0, 0)
         self.panel_start = PanelStart(self.game_state, self.screen.get_rect(), 1, 1, 0, 0)
+        self.panel_console = ConsolePanel(self.game_state, self.screen.get_rect())
         self.game_state.end_state = 'win'
         self.game_state.set_state('normal')
 
@@ -3573,6 +3726,13 @@ class MyGameGui(GameGui):
                     self.game_state.parameter_actions.append('-1')
                 elif event.key == pygame.K_ESCAPE and self.game_state.state == 'menu':
                     self.game_state.set_state('normal')
+                elif event.key == pygame.K_BACKQUOTE:
+                    if self.game_state.state == 'console':
+                        self.game_state.set_state(self.game_state.previous_state)
+                        self.game_state.previous_state = 'console'
+                    else:
+                        self.game_state.previous_state = self.game_state.state
+                        self.game_state.set_state('console')
             if self.game_state.state in ['normal', 'dragging', 'carousel']:
                 self.panel_game.handle_event(event)
             elif self.game_state.state in ['menu']:
@@ -3583,6 +3743,8 @@ class MyGameGui(GameGui):
                 self.panel_end.handle_event(event)
             elif self.game_state.state in ['start screen']:
                 self.panel_start.handle_event(event)
+            elif self.game_state.state in ['console']:
+                self.panel_console.handle_event(event)
 
     def update(self):
         if self.game_state.state in ['normal', 'dragging', 'carousel']:
@@ -3644,7 +3806,8 @@ class MyGameGui(GameGui):
                         self.notifications.append(NotifyAction('me-turn', 0, 0))
 
             if self.game.turn == 1:
-                self.step_by_ai()
+                if self.game_state.ai:
+                    self.step_by_ai()
         if self.game_state.state in ['menu']:
             action = self.game_state.pause_menu_option
             self.game_state.pause_menu_option = None
@@ -3707,6 +3870,8 @@ class MyGameGui(GameGui):
             self.panel_end.draw(self.screen)
         elif self.game_state.state in ['start screen']:
             self.panel_start.draw(self.screen)
+        elif self.game_state.state in ['console']:
+            self.panel_console.draw(self.screen)
         pygame.display.flip()
 
     def draw_ai_action(self):
