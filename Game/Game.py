@@ -613,3 +613,6 @@ class Game:
                 print(f"Difference at position ({row}, {col}):")
                 print(f"Matrix 1 value: {val1}")
                 print(f"Matrix 2 value: {val2}")
+
+    def give_card(self, player_id, card_id):
+        self.players[player_id].add_card(self.create_card(card_id))

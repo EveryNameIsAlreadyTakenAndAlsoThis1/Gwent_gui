@@ -2,6 +2,9 @@ import pygame
 import random
 import time
 import os
+import copy
+import json
+import numpy as np
 from Game.Game import Game
 
 
@@ -364,6 +367,9 @@ class GameState(Subject):
         self.end_state = None
         self.ai = True
         self.developer_tools = True
+        self.stepper = Stepper(self)
+        self.stepper_on = False
+        self.game = None
         self.results_player = ['0', '0', '0']
         self.results_opponent = ['0', '0', '0']
 
@@ -1672,7 +1678,7 @@ class PanelDeveloperTools(Component):
         self.buttons = []
         self.font = pygame.font.Font(None, 36)  # Adjust font size as needed
 
-        functionalities = ["Switch view", "Function 2", "Function 3"]
+        functionalities = ["Switch view", "Step back", "Step forward"]
 
         rect_height = self.rect.height // len(functionalities)
         for i, func in enumerate(functionalities):
@@ -1682,7 +1688,7 @@ class PanelDeveloperTools(Component):
     def draw(self, screen):
         for rect, func_name in self.buttons:
             # Draw rectangle
-            #pygame.draw.rect(screen, (200, 200, 200), rect)
+            # pygame.draw.rect(screen, (200, 200, 200), rect)
 
             # Draw text
             text_surface = self.font.render(func_name, True, (0, 0, 0))
@@ -1700,6 +1706,79 @@ class PanelDeveloperTools(Component):
                         self.game_state.game_state_matrix = self.game_state.game_state_matrix_opponent
                         self.game_state.game_state_matrix_opponent = temp
                         self.game_state.set_state('normal')
+                    elif func_name == 'Step back':
+                        self.game_state.stepper.back()
+                        self.game_state.set_state('normal')
+                    elif func_name == 'Step forward':
+                        self.game_state.stepper.forward()
+                        self.game_state.set_state('normal')
+
+
+class Stepper:
+    def __init__(self, game_state):
+        self.game_state = game_state
+
+        self.matrix_player = []
+        self.actions_player = []
+        self.matrix_opponent = []
+        self.actions_opponent = []
+        self.current_index = 0
+
+        self.save_state = None
+        self.save_state_opponent = None
+
+    def step(self, turn, action):
+        self.matrix_player.append(copy.copy(self.game_state.game_state_matrix))
+        self.matrix_opponent.append(copy.copy(self.game_state.game_state_matrix_opponent))
+        if turn == 0:
+            self.actions_player.append(action)
+        elif turn == 1:
+            self.actions_opponent.append(action)
+
+    def forward(self):
+        if self.save_state is not None and self.current_index + 1 < len(self.matrix_player):
+            self.current_index += 1
+            self.game_state.game_state_matrix = self.matrix_player[self.current_index]
+            self.game_state.game_state_matrix_opponent = self.matrix_opponent[self.current_index]
+        elif self.save_state is not None and self.current_index + 1 == len(self.matrix_player):
+            self.game_state.game_state_matrix = self.save_state
+            self.game_state.game_state_matrix_opponent = self.save_state_opponent
+            self.save_state = None
+            self.save_state_opponent = None
+
+    def back(self):
+        if self.save_state is None and len(self.matrix_player) > 0:
+            self.save_state = self.game_state.game_state_matrix
+            self.save_state_opponent = self.game_state.game_state_matrix_opponent
+            self.current_index = len(self.matrix_player) - 1
+            self.game_state.game_state_matrix = self.matrix_player[self.current_index]
+        elif self.save_state is not None and self.current_index > 0:
+            self.current_index -= 1
+            self.game_state.game_state_matrix = self.matrix_player[self.current_index]
+            self.game_state.game_state_matrix_opponent = self.matrix_opponent[self.current_index]
+
+    def save(self, filename):
+        with open(filename, 'w') as file:
+            data_file = {
+                'matrix_player': [arr.tolist() for arr in self.matrix_player],
+                'actions_player': self.actions_player,
+                'matrix_opponent': [arr.tolist() for arr in self.matrix_opponent],
+                'actions_opponent': self.actions_opponent,
+                'current_index': self.current_index
+            }
+            json.dump(data_file, file)
+
+    def load(self, filename):
+        with open(filename, 'r') as file:
+            data_file = json.load(file)
+            self.matrix_player = [np.array(arr) for arr in data_file['matrix_player']]
+            self.actions_player = data_file['actions_player']
+            self.matrix_opponent = [np.array(arr) for arr in data_file['matrix_opponent']]
+            self.actions_opponent = data_file['actions_opponent']
+            self.current_index = data_file['current_index']
+            self.game_state.game_state_matrix = self.matrix_player[self.current_index] if self.matrix_player else None
+            self.game_state.game_state_matrix_opponent = self.matrix_opponent[
+                self.current_index] if self.matrix_opponent else None
 
 
 class PanelRight(Component):
@@ -3568,6 +3647,7 @@ class ConsolePanel(Component):
             'step': self.step,
             'tools': self.tools,
             'ai': self.ai,
+            'log': self.log
         }
         self.current_input = ""
         self.font = pygame.font.Font(None, 36)
@@ -3629,6 +3709,7 @@ class ConsolePanel(Component):
 
     def quit_game(self):
         print("Quitting the game...")
+        pygame.quit()
         # Add your game quitting logic here
 
     def clear_console(self):
@@ -3638,11 +3719,16 @@ class ConsolePanel(Component):
 
     def give_card(self, player_id, card_id):
         print(f"Giving card {card_id} to player {player_id}...")
-        # Add your card giving logic here
+        self.game_state.game.give_card(int(player_id), int(card_id))
+        self.game_state.set_state('normal')
 
     def step(self, mode):
         print(f"Setting step mode to {mode}...")
         # Add your step setting logic here
+        if mode == 'on':
+            self.game_state.stepper_on = True
+        elif mode == 'off':
+            self.game_state.stepper_on = False
 
     def tools(self, mode):
         print("Developer tools...")
@@ -3657,6 +3743,12 @@ class ConsolePanel(Component):
             self.game_state.ai = True
         elif mode == 'off':
             self.game_state.ai = False
+
+    def log(self, action, name):
+        if action == 'save':
+            self.game_state.stepper.save(name)
+        elif action == 'load':
+            self.game_state.stepper.load(name)
 
 
 class GameGui:
@@ -3674,6 +3766,7 @@ class GameGui:
         self.game_state = GameState()
         self.game_state.game_state_matrix = self.game.game_state_matrix.state_matrix_0
         self.game_state.game_state_matrix_opponent = self.game.game_state_matrix.state_matrix_1
+        self.game_state.game = self.game
         self.timing_data = {
             "handle_events": [],
             "update": [],
@@ -3762,6 +3855,9 @@ class MyGameGui(GameGui):
                 if action is not None and self.game.turn == 0:
                     player_score = int(self.game_state.game_state_matrix[0][145])
                     opponent_score = int(self.game_state.game_state_matrix[0][146])
+
+                    if self.game_state.stepper_on:
+                        self.game_state.stepper.step(self.game.turn, action)
                     result = self.game.step(action)
                     self.game_state.set_state('normal')
                     if action_a == '-1':
@@ -3888,6 +3984,9 @@ class MyGameGui(GameGui):
                 bool_actions, actions = self.game.valid_actions()
                 player_score = int(self.game_state.game_state_matrix[0][145])
                 opponent_score = int(self.game_state.game_state_matrix[0][146])
+                if self.game_state.stepper_on:
+                    self.game_state.stepper.step(self.game.turn,
+                                                 self.game.get_index_of_action(actions[self.index_action_ai]))
                 result = self.game.step(self.game.get_index_of_action(actions[self.index_action_ai]))
                 self.game_state.set_state('normal')
                 if actions[self.index_action_ai] == '-1':
