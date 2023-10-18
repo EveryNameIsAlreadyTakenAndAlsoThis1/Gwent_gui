@@ -1,8 +1,10 @@
-import pygame
-import random
 import copy
 import json
+import random
+
 import numpy as np
+import pygame
+
 from Game.Game import Game
 
 
@@ -48,16 +50,17 @@ def load_file(file_path):
     and the CSV data should align with the expected keys and data types.
     """
     with open(file_path, 'r') as f:
-        data = f.read().splitlines()
+        data_read = f.read().splitlines()
 
     result = {}
     current_group = None
 
-    for line in data:
+    for line in data_read:
         if line == '':
             continue
 
-        if 'Northern Realms' in line or 'Scoiatael' in line or 'Neutral' in line or 'Nilfgaard' in line or 'Monsters' in line or 'Name' in line:
+        if 'Northern Realms' in line or 'Scoiatael' in line or 'Neutral' in line or 'Nilfgaard' in line or 'Monsters' \
+                in line or 'Name' in line:
             continue
 
         name, _id, strength, ability, card_type, placement, count, image, empty = line.split(',')
@@ -151,16 +154,17 @@ def load_file_game(file_path):
     """
 
     with open(file_path, 'r') as f:
-        data = f.read().splitlines()
+        data_read = f.read().splitlines()
 
     result = {}
     current_group = None
 
-    for line in data:
+    for line in data_read:
         if line == '':
             continue
 
-        if 'Northern Realms' in line or 'Scoiatael' in line or 'Neutral' in line or 'Nilfgaard' in line or 'Monsters' in line:
+        if 'Northern Realms' in line or 'Scoiatael' in line or 'Neutral' in line or 'Nilfgaard' in line or 'Monsters' \
+                in line:
             current_group = line.strip(',')
             result[current_group] = []
             continue
@@ -379,7 +383,8 @@ def card_strength_text(screen, card, card_x, start_y, image):
     Notes:
     ------
     - Different colors are used to distinguish between different states of a card’s strength:
-      black for normal units, white for heroes, green for units that have been buffed, and red for units that have been debuffed.
+      black for normal units, white for heroes, green for units that have been buffed, and red for units that have
+      been debuffed.
     - The text is drawn at a position relative to the card’s image, and its style may change dynamically
       based on the card's current state and type.
     """
@@ -466,7 +471,7 @@ def check_valid_action(card_board, card_dragged, game_state):
         pass
     else:
         game_state.parameter_actions.append(
-            str(card_dragged._id) + ',' + str(card_board.parent_container.row_id) + ',' + str(card_board._id))
+            str(card_dragged.id) + ',' + str(card_board.parent_container.row_id) + ',' + str(card_board.id))
 
 
 def load_and_scale_image(image_path, width, height):
@@ -501,10 +506,6 @@ class Observer:
     update(self, subject)
         An abstract method that should be overridden in subclass to define
         the update behavior of the observer based on changes in the subject.
-        Parameters:
-            subject : Subject
-                The subject instance that has undergone changes, necessitating
-                the update of attached observers.
     """
 
     def update(self, subject):
@@ -548,16 +549,10 @@ class Subject:
     register(self, observer)
         Adds an observer to the subject's list of observers making the observer
         get notifications upon changes.
-        Parameters:
-            observer : Observer
-                An instance of an observer to be added to the notification list.
 
     unregister(self, observer)
         Removes an observer from the subject's list of observers stopping the
         observer from getting notifications upon changes.
-        Parameters:
-            observer : Observer
-                An instance of an observer to be removed from the notification list.
 
     notify(self)
         Calls the update method on all registered observers, signaling a change
@@ -623,7 +618,7 @@ class GameState(Subject):
     game_state_matrix_opponent : various types
         Possibly holds a matrix representing the game's state for the opponent.
     hovering_card : various types
-        May store a reference to a card object that is currently being hovered over.
+        Stores a reference to a card object that is currently being hovered over.
     pause_menu_option : various types
         Holds the user-selected option from the pause menu.
     main_menu_option : various types
@@ -641,7 +636,7 @@ class GameState(Subject):
     stepper_on : bool
         Indicates whether the stepper is currently active.
     game : Game
-        May hold a reference to the main game object or instance.
+        Holds a reference to the main game object or instance.
     results_player : list of str
         Stores the results or scores for the player.
     results_opponent : list of str
@@ -654,9 +649,6 @@ class GameState(Subject):
 
     set_state(self, new_state)
         Updates the game's state and notifies all observers of the change.
-        Parameters:
-            new_state : str
-                The new state to set the game to.
 
     clear(self)
         Resets the GameState object attributes to prepare for a new game or round.
@@ -727,7 +719,7 @@ class Card:
 
     Attributes:
     ----------
-    _id : int
+    id : int
         A unique identifier of the card.
     data : dict
         Dictionary containing all relevant information about the card.
@@ -785,7 +777,7 @@ class Card:
         and updating the card's position while dragging.
     """
 
-    def __init__(self, _id, data, game_state):
+    def __init__(self, _id, data_input, game_state):
         """
         Initializes the Card object with the given ID, data dictionary, and game state.
 
@@ -798,8 +790,8 @@ class Card:
         game_state : GameState
             The current state of the game.
         """
-        self._id = _id
-        self.data = data[_id]
+        self.id = _id
+        self.data = data_input[_id]
         self.name = self.data['Name']
         self.strength = self.data['Strength']
         self.ability = self.data['Ability']
@@ -844,14 +836,15 @@ class Card:
                                'img/icons/card_row_siege.png']
             placement_icon = pygame.image.load(placement_icons[self.placement])
             self.image.blit(placement_icon, (self.small_image.get_width() - placement_icon.get_width(),
-                                             self.small_image.get_height() - placement_icon.get_height()))  # bottom right corner
+                                             self.small_image.get_height() - placement_icon.get_height()))  # bottom
+            # right corner
 
-        # If card type is Hero or Unit, add ability icon to the bottom right, left to previous icon
-        if self.type in ["Hero", "Unit"] and self.ability in ["Spy", "Bond", "Morale", "Medic", "Muster"]:
-            ability_icon = self.data['Ability_icon']
-            self.image.blit(ability_icon, (
-                self.small_image.get_width() - placement_icon.get_width() - ability_icon.get_width(),
-                self.small_image.get_height() - ability_icon.get_height()))  # left to the previous icon
+            # If card type is Hero or Unit, add ability icon to the bottom right, left to previous icon
+            if self.type in ["Hero", "Unit"] and self.ability in ["Spy", "Bond", "Morale", "Medic", "Muster"]:
+                ability_icon = self.data['Ability_icon']
+                self.image.blit(ability_icon, (
+                    self.small_image.get_width() - placement_icon.get_width() - ability_icon.get_width(),
+                    self.small_image.get_height() - ability_icon.get_height()))  # left to the previous icon
 
     def render(self, screen):
         """
@@ -902,7 +895,7 @@ class Card:
             - If the mouse button is released and the game state is 'normal':
                 - It checks if an action is valid and performs the action if it is.
             - If the mouse button is released and the game state is 'dragging':
-                - The game state is reverted back to 'normal'.
+                - The game state is reverted to 'normal'.
                 - The card’s dragging state is set to False.
 
         3. MOUSEMOTION:
@@ -964,7 +957,7 @@ class Component(Observer):
         Handles Pygame events.
     """
 
-    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio=0, y_ratio=0):
+    def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio=0.0, y_ratio=0.0):
         """
         Initializes the Component with relative dimensions and positions based on
         the given ratios. The Component also gets registered to observe game_state.
@@ -1006,7 +999,7 @@ class Component(Observer):
 
     def update(self, subject):
         """
-        Responds to changes in the GameState object. By default, this method does nothing.
+        Responds to change in the GameState object. By default, this method does nothing.
         Subclasses can override this method to take action when the game state changes.
 
         Parameters:
@@ -1121,7 +1114,7 @@ class PanelLeft(Component):
         y_ratio_lb : float
             The ratio of the leader box's y-coordinate to the parent's height.
         y_ratio_stats : float
-            The ratio of the stats's y-coordinate to the parent's height.
+            The ratio of the stats' y-coordinate to the parent's height.
         is_opponent : bool
             A flag indicating whether the stats are for the opponent or the player.
         """
@@ -1193,9 +1186,11 @@ class LeaderBox(Component):
         height_ratio : float
             The ratio of the LeaderBox's height to its parent's height, determining the height of the LeaderBox.
         x_ratio : float
-            The ratio of the LeaderBox's x-coordinate (left edge) to its parent's width, determining the horizontal position of the LeaderBox within the parent.
+            The ratio of the LeaderBox's x-coordinate (left edge) to its parent's width, determining the horizontal
+            position of the LeaderBox within the parent.
         y_ratio : float
-            The ratio of the LeaderBox's y-coordinate (top edge) to its parent's height, determining the vertical position of the LeaderBox within the parent.
+            The ratio of the LeaderBox's y-coordinate (top edge) to its parent's height, determining the vertical
+            position of the LeaderBox within the parent.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
 
@@ -1228,7 +1223,8 @@ class LeaderContainer(Component):
     Methods:
     --------
     __init__(game_state, parent_rect, width_ratio, height_ratio)
-        Initializes the LeaderContainer with specified attributes and ensures it is centered within the parent component.
+        Initializes the LeaderContainer with specified attributes and ensures it is centered within the parent
+        component.
     """
 
     def __init__(self, game_state, parent_rect, width_ratio, height_ratio):
@@ -1249,7 +1245,8 @@ class LeaderContainer(Component):
         width_ratio : float
             The ratio of the LeaderContainer's width to its parent's width. Determines the width of the LeaderContainer.
         height_ratio : float
-            The ratio of the LeaderContainer's height to its parent's height. Determines the height of the LeaderContainer.
+            The ratio of the LeaderContainer's height to its parent's height. Determines the height of the
+            LeaderContainer.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio)
         # Center the LeaderContainer within its parent component.
@@ -1307,12 +1304,15 @@ class LeaderActive(Component):
         height_ratio : float
             The ratio of the LeaderActive's height to its parent's height. Determines the height of the LeaderActive.
         x_ratio : float
-            The ratio of the LeaderActive's x position to its parent's width. Determines the horizontal position of the LeaderActive within the parent.
+            The ratio of the LeaderActive's x position to its parent's width. Determines the horizontal position of
+            the LeaderActive within the parent.
         y_ratio : float
-            The ratio of the LeaderActive's y position to its parent's height. Determines the vertical position of the LeaderActive within the parent.
+            The ratio of the LeaderActive's y position to its parent's height. Determines the vertical position of
+            the LeaderActive within the parent.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
-                         y_ratio)  # 24% of the leader_box width, 28% of the leader_box height, positioned within the leader_box
+                         y_ratio)  # 24% of the leader_box width, 28% of the leader_box height, positioned within the
+        # leader_box
 
 
 class Stats(Component):
@@ -1386,13 +1386,13 @@ class Stats(Component):
         parent_rect : pygame.Rect
             The Rect of the parent component.
         width_ratio : float
-            The ratio of the Stats's width to its parent's width.
+            The ratio of the Stats' width to its parent's width.
         height_ratio : float
-            The ratio of the Stats's height to its parent's height.
+            The ratio of the Stats' height to its parent's height.
         x_ratio : float
-            The ratio of the Stats's x position to its parent's width.
+            The ratio of the Stats' x position to its parent's width.
         y_ratio : float
-            The ratio of the Stats's y position to its parent's height.
+            The ratio of the Stats' y position to its parent's height.
         is_opponent : bool
             A flag that represents whether the Stats are for the opponent or the player.
         """
@@ -1462,7 +1462,7 @@ class Stats(Component):
             The created deck name.
         """
         y_ratio = 0.25 if is_opponent else 0.80
-        return DeckName(self.game_state, self, 0.47, 0.125, 0.53, y_ratio, deck_name)
+        return DeckName(self.game_state, self.rect, 0.47, 0.125, 0.53, y_ratio, deck_name)
 
     def create_hand_count(self, is_opponent):
         """
@@ -1479,7 +1479,7 @@ class Stats(Component):
             The created hand count.
         """
         y_ratio = 0.585 if is_opponent else 0.185
-        return HandCount(self.game_state, self, 0.17, 0.295, 0.5325, y_ratio)
+        return HandCount(self.game_state, self.rect, 0.17, 0.295, 0.5325, y_ratio)
 
     def create_gem(self, x_ratio, is_opponent):
         """
@@ -1521,7 +1521,7 @@ class Stats(Component):
 
     def draw(self, screen):
         """
-        Draws all of the elements of the stats instance onto the provided Pygame surface.
+        Draws all the elements of the stats instance onto the provided Pygame surface.
 
         Parameters:
         -----------
@@ -2032,7 +2032,8 @@ class ScoreTotal(Component):
 
     def draw(self, screen):
         """
-        Draws the score total icon and text, and the high score icon if this score is the high score, onto the given screen.
+        Draws the score total icon and text, and the high score icon if this score is the high score, onto the given
+        screen.
 
         Parameters
         ----------
@@ -2089,7 +2090,8 @@ class Passed(Component):
             The ratio of this component's y position to its parent's height.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
-                         y_ratio)  # 0% height, 0% width, positioned at 90% of the parent width, 87% of the parent height
+                         y_ratio)  # 0% height, 0% width, positioned at 90% of the parent width, 87% of the parent
+        # height
         self.font_size = int(parent_rect.height * height_ratio)  # 16% of the stats_op height
         self.font = ResizableFont('Gwent.ttf', self.font_size)
         self.passed_bool = False
@@ -2110,7 +2112,8 @@ class Passed(Component):
 
 class Weather(Component):
     """
-    This class represents a Weather component, responsible for displaying various weather conditions on the screen as card images.
+    This class represents a Weather component, responsible for displaying various weather conditions on the screen as
+    card images.
     Inherits attributes and methods from the Component class.
 
     Attributes:
@@ -2131,11 +2134,13 @@ class Weather(Component):
     Methods:
     -------
     __init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
-        Initializes a new instance of the Weather class, setting up its visual representation and interactive properties.
+        Initializes a new instance of the Weather class, setting up its visual representation and interactive
+        properties.
     draw(screen: pygame.Surface)
         Draws the weather condition cards on the screen with hover effects and scaling.
     update(subject)
-        Updates the state of the weather component based on changes in the game state, modifying its behavior and appearance.
+        Updates the state of the weather component based on changes in the game state, modifying its behavior and
+        appearance.
     """
 
     def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
@@ -2158,7 +2163,8 @@ class Weather(Component):
             The ratio of the Weather component’s y position to its parent's height.
         """
         super().__init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio,
-                         y_ratio)  # 54.9% of the parent width, 12.75% of the parent height, positioned at 27.9% of the parent width, 41.25% of the parent height
+                         y_ratio)  # 54.9% of the parent width, 12.75% of the parent height, positioned at 27.9% of
+        # the parent width, 41.25% of the parent height
         self.cards = []
         self.frost = Card(60, data, game_state)
         self.fog = Card(61, data, game_state)
@@ -2279,7 +2285,8 @@ class RowScore(Component):
     Methods:
     -------
     __init__(game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio)
-        Initializes the RowScore with positioning and sizing relative to a parent Rect, and initial visual configurations.
+        Initializes the RowScore with positioning and sizing relative to a parent Rect, and initial visual
+        configurations.
     set_score(score: int)
         Sets and updates the score to be displayed, also updates the text representation.
     draw(screen: pygame.Surface)
@@ -2504,7 +2511,7 @@ class RowSpecial(Component):
     draw(screen)
         Renders the special card and its hover effects on the given screen if the row is active.
     update(subject)
-        Updates the state of the row, controlling hoverability based on game state changes.
+        Updates the state of the row, controlling hover-ability based on game state changes.
     """
 
     def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
@@ -2554,16 +2561,16 @@ class RowSpecial(Component):
             card_rect = pygame.Rect(img_x, img_y, img_width, img_height)
             if card_rect.collidepoint(mouse_pos):
                 self.card.hovering = True
-        if self.card.hovering and self.allow_hovering:
-            hovering_image = self.card.image.copy()
-            self.card.hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
-            self.card.hovering_x = img_x
-            self.card.hovering_y = img_y
-            self.game_state.hovering_card = self.card
+            if self.card.hovering and self.allow_hovering:
+                hovering_image = self.card.image.copy()
+                self.card.hovering_image = scale_surface(hovering_image, (self.width * 1.2, self.height * 1.2))
+                self.card.hovering_x = img_x
+                self.card.hovering_y = img_y
+                self.game_state.hovering_card = self.card
 
     def update(self, subject):
         """
-        Updates the hoverability of the card based on the game state changes,
+        Updates the hover-ability of the card based on the game state changes,
         like entering and exiting the 'carousel' or 'dragging' states.
 
         Parameters:
@@ -2962,9 +2969,6 @@ class CardContainer(Component):
             card_height = self.cards[0].image_scaled.get_height()
             start_y = self.y + (self.height * 0.95 - card_height) / 2
 
-            # Get the mouse cursor position
-            mouse_pos = pygame.mouse.get_pos()
-
             for i, card in enumerate(self.cards):
                 card_x = start_x + i * (card.image_scaled.get_width() - overlap)
                 card_rect = pygame.Rect(card_x, start_y, card.image_scaled.get_width(), card.image_scaled.get_height())
@@ -3052,9 +3056,9 @@ class CardContainer(Component):
         if event.type == pygame.MOUSEBUTTONUP and self.game_state.state == 'dragging':
             if self.rect.collidepoint(event.pos):
                 self.game_state.parameter_actions.append(
-                    str(self.game_state.parameter._id) + ',' + str(self.row_id) + ',-1')
+                    str(self.game_state.parameter.id) + ',' + str(self.row_id) + ',-1')
                 self.game_state.parameter_actions.append(
-                    str(self.game_state.parameter._id) + ',' + '4' + ',-1')
+                    str(self.game_state.parameter.id) + ',' + '4' + ',-1')
         for card in self.cards:
             card.parent_container = self
             card.handle_event(event)
@@ -3126,16 +3130,16 @@ class Field(Component):
             self.field_list.append(self.card_container)
         else:
             if is_opponent:
-                self.field_row_siege = FieldRow(game_state, 2, self, 1, 0.32, 0, 0.021, is_opponent)
-                self.field_row_ranged = FieldRow(game_state, 1, self, 1, 0.32, 0, 0.335, is_opponent)
-                self.field_row_melee = FieldRow(game_state, 0, self, 1, 0.32, 0, 0.67, is_opponent)
+                self.field_row_siege = FieldRow(game_state, 2, self.rect, 1, 0.32, 0, 0.021, is_opponent)
+                self.field_row_ranged = FieldRow(game_state, 1, self.rect, 1, 0.32, 0, 0.335, is_opponent)
+                self.field_row_melee = FieldRow(game_state, 0, self.rect, 1, 0.32, 0, 0.67, is_opponent)
                 self.field_list.append(self.field_row_ranged)
                 self.field_list.append(self.field_row_siege)
                 self.field_list.append(self.field_row_melee)
             else:
-                self.field_row_melee = FieldRow(game_state, 0, self, 1, 0.32, 0, 0.021, is_opponent)
-                self.field_row_ranged = FieldRow(game_state, 1, self, 1, 0.32, 0, 0.335, is_opponent)
-                self.field_row_siege = FieldRow(game_state, 2, self, 1, 0.32, 0, 0.67, is_opponent)
+                self.field_row_melee = FieldRow(game_state, 0, self.rect, 1, 0.32, 0, 0.021, is_opponent)
+                self.field_row_ranged = FieldRow(game_state, 1, self.rect, 1, 0.32, 0, 0.335, is_opponent)
+                self.field_row_siege = FieldRow(game_state, 2, self.rect, 1, 0.32, 0, 0.67, is_opponent)
                 self.field_list.append(self.field_row_melee)
                 self.field_list.append(self.field_row_ranged)
                 self.field_list.append(self.field_row_siege)
@@ -3178,7 +3182,7 @@ class Field(Component):
                             and isinstance(self.game_state.parameter, Card) \
                             and self.game_state.parameter.ability == 'Medic':
                         self.game_state.parameter_actions.append(
-                            str(self.game_state.parameter._id) + ',' + str(fieldRow.row_id) + ',' + '-1')
+                            str(self.game_state.parameter.id) + ',' + str(fieldRow.row_id) + ',' + '-1')
                         self.game_state.parameter = None
                         self.game_state.set_state('carousel')
                     else:
@@ -3286,8 +3290,10 @@ class PanelMiddle(Component):
 
 class PanelDeveloperTools(Component):
     """
-    Represents the developer tools panel in the game application's GUI, inheriting functionalities from the Component class.
-    It manages and displays a set of buttons allowing users to interact with developer functionalities like switching views,
+    Represents the developer tools panel in the game application's GUI, inheriting functionalities from the Component
+    class.
+    It manages and displays a set of buttons allowing users to interact with developer functionalities like switching
+    views,
     stepping back, and stepping forward within the game states.
 
     Attributes:
@@ -3425,6 +3431,7 @@ class Stepper:
     load(self, filename)
         Loads the game states and actions from a file.
     """
+
     def __init__(self, game_state):
         """
         Initializes the Stepper object with the given game state.
@@ -3718,7 +3725,8 @@ class PanelGame(Component):
             if self.game_state.state == 'dragging':
                 self.game_state.parameter.draw(screen)
 
-        if self.game_state.state == 'normal' and self.game_state.hovering_card is not None and self.game_state.hovering_card.hovering:
+        if self.game_state.state == 'normal' and self.game_state.hovering_card is not None and \
+                self.game_state.hovering_card.hovering:
             hovering_image = self.game_state.hovering_card.hovering_image
             screen.blit(hovering_image,
                         (self.game_state.hovering_card.hovering_x, self.game_state.hovering_card.hovering_y))
@@ -3958,7 +3966,6 @@ class Deck(Component):
         if not self.cards:
             return
 
-        card = self.cards[-1]
         card_image_scaled = self.deck_back_image
         center_x = self.x + self.width / 2
         center_y = self.y + self.height / 2
@@ -4166,7 +4173,7 @@ class Carousel(Component):
                 last_action = self.game_state.parameter_actions[-1]
                 split = last_action.split(',')
                 new_action = ','.join(split[:2])
-                new_action += ',' + str(self.cards[self.current_index]._id)
+                new_action += ',' + str(self.cards[self.current_index].id)
                 self.game_state.parameter_actions.append(new_action)
                 self.game_state.set_state('normal')
 
@@ -4174,7 +4181,8 @@ class Carousel(Component):
 class Notify(Component):
     """
     Represents a notification component within a game, inheriting from the Component class.
-    This class handles the display of various notifications to the user, updating the visuals based on the notification type.
+    This class handles the display of various notifications to the user, updating the visuals based on the
+    notification type.
 
     Attributes:
     ----------
@@ -4192,6 +4200,7 @@ class Notify(Component):
     set_notification(self, notification)
         Sets the notification text and image based on the notification type provided.
     """
+
     def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes a new instance of the Notify class along with its text and image components.
@@ -4280,10 +4289,12 @@ class Notify(Component):
             self.notify_component_text.text_to_draw = "Opponent's turn!"
             self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_op_turn.png')
         elif notification == 'north':
-            self.notify_component_text.text_to_draw = "Northern Realms faction ability triggered - North draws an additional card."
+            self.notify_component_text.text_to_draw = "Northern Realms faction ability triggered - North draws an " \
+                                                      "additional card."
             self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_north.png')
         elif notification == 'monsters':
-            self.notify_component_text.text_to_draw = "Monsters faction ability triggered - one randomly-chosen Monster Unit Card stays on the board."
+            self.notify_component_text.text_to_draw = "Monsters faction ability triggered - one randomly-chosen " \
+                                                      "Monster Unit Card stays on the board."
             self.notify_component_image.image_to_draw = pygame.image.load('img/icons/notif_monsters.png')
         elif notification == 'scoiatael':
             self.notify_component_text.text_to_draw = "Opponent used the Scoia'tael faction perk to go first."
@@ -4311,6 +4322,7 @@ class NotifyComponent(Component):
     draw(self, screen)
         Draws the image or text message onto the screen based on what is currently set to display.
     """
+
     def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the NotifyComponent with geometrical attributes and font.
@@ -4375,6 +4387,7 @@ class NotifyAction:
     __init__(self, notification_name, start_time, elapsed_time)
         Initializes the NotifyAction object with specified attributes values.
     """
+
     def __init__(self, notification_name, start_time, elapsed_time):
         """
         Creates a new NotifyAction object with specified values for the notification name, start time, and elapsed time.
@@ -4501,6 +4514,7 @@ class PauseMenu(Component):
     handle_event(self, event)
         Handles the user input events, like mouse motion and mouse button down.
     """
+
     def __init__(self, game_state, parent_rect):
         """
         Initializes the PauseMenu object with specified game state and parent rectangle.
@@ -4520,7 +4534,6 @@ class PauseMenu(Component):
         self.surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         self.surface.fill((0, 0, 0, 240))
 
-        option_height = self.height / len(self.options)
         for i, option in enumerate(self.options):
             option_rect = Component(game_state, self.rect, 1, 1 / len(self.options), 0, i / len(self.options))
             self.option_rects.append(option_rect)
@@ -4568,7 +4581,7 @@ class MainMenu(Component):
 
     Attributes:
     ----------
-    game_state : object
+    game_state : GameState
         The current state of the game.
     parent_rect : pygame.Rect
         The rectangle object where the MainMenu will be drawn.
@@ -4594,13 +4607,14 @@ class MainMenu(Component):
     handle_event(self, event)
         Handles the user input events, like mouse motion and mouse button down.
     """
+
     def __init__(self, game_state, parent_rect):
         """
         Initializes the MainMenu with the game state, parent rectangle, and necessary images.
 
         Parameters:
         ----------
-        game_state : object
+        game_state : GameState
             The current state of the game.
         parent_rect : pygame.Rect
             The rectangle object where the MainMenu will be drawn.
@@ -4710,6 +4724,7 @@ class PanelEnd(Component):
     handle_event(self, event)
         Handles mouse events to interact with the menu items.
     """
+
     def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the PanelEnd object with the necessary attributes such as game state,
@@ -4717,7 +4732,7 @@ class PanelEnd(Component):
 
         Parameters:
         ----------
-        game_state : object
+        game_state : GameState
             The current state of the game.
         parent_rect : pygame.Rect
             The rectangle object where the PanelEnd will be drawn.
@@ -4744,6 +4759,9 @@ class PanelEnd(Component):
         self.menu_items = []
         self.hovered_item = None
         self.create_menu_items()
+
+        self.table = None
+        self.table_rect = None
 
     def draw(self, screen):
         """
@@ -4820,7 +4838,6 @@ class PanelEnd(Component):
         """
         font = ResizableFont('Gwent.ttf', 20)
         text_color = (218, 165, 32)
-        border_color = (255, 255, 255)
 
         cell_width = self.table.get_width() / 4
         cell_height = self.table.get_height() / 3
@@ -4926,6 +4943,7 @@ class PanelStart(Component):
     handle_event(event)
         Handles mouse events for interaction with the scrollable items, managing selection and scrolling.
     """
+
     def __init__(self, game_state, parent_rect, width_ratio, height_ratio, x_ratio, y_ratio):
         """
         Initializes the PanelStart object with necessary attributes such as game state,
@@ -5091,6 +5109,7 @@ class ConsolePanel(Component):
     log(action, name)
         Handles the 'log' command to manage game logs.
     """
+
     def __init__(self, game_state, screen_rect):
         """
         Initializes the ConsolePanel object with necessary attributes such as game state,
@@ -5176,7 +5195,7 @@ class ConsolePanel(Component):
         Parameters:
         ----------
         command_str : str
-            The string containing the command and parameters entered in the console.
+            The string containing the command and parameters entered the console.
         """
         # Split the command string into words
         words = command_str.split()
@@ -5201,14 +5220,13 @@ class ConsolePanel(Component):
         except Exception as e:
             print(f"Error executing command: {str(e)}")
 
-    def quit_game(self):
+    @staticmethod
+    def quit_game():
         """
         Handles the 'quit' command to exit the game. Terminates the pygame instance
         and any additional quitting logic should be added here.
         """
-        print("Quitting the game...")
         pygame.quit()
-        # Add your game quitting logic here
 
     def clear_console(self):
         """
@@ -5302,7 +5320,7 @@ class ConsolePanel(Component):
             self.game_state.stepper.load(name)
 
 
-class GameGui:
+class MyGameGui:
     """
     This class represents the main GUI of the game, initializing the game window,
     handling game states, and managing game components such as notifications, AI previews, and game timings.
@@ -5316,7 +5334,7 @@ class GameGui:
     fps : int
         Frames per second, controls the game's refresh rate.
     screen : pygame.Surface
-        The main surface where game elements are drawn, set to fullscreen mode.
+        The main surface where game elements are drawn, set to full-screen mode.
     clock : pygame.time.Clock
         An object to help track time within the game.
     running : bool
@@ -5343,58 +5361,6 @@ class GameGui:
         A flag to control whether AI previews are currently active.
     round_index : int
         Keeps track of the current round index in the game.
-    """
-    def __init__(self, fps=60):
-        """
-        Initializes the GameGui object, setting up the display, game states, and other related attributes.
-
-        Parameters:
-        ----------
-        fps : int, optional
-            Frames per second for controlling game refresh rate, defaults to 60.
-        """
-        pygame.init()
-        infoObject = pygame.display.Info()
-        self.width = infoObject.current_w
-        self.height = infoObject.current_h
-        self.fps = fps
-        self.screen = pygame.display.set_mode((self.width, self.height), pygame.FULLSCREEN)
-        self.clock = pygame.time.Clock()
-        self.running = True
-        self.cards = load_file_game('Gwent.csv')
-        self.game = Game(self.cards)
-        self.game_state = GameState()
-        self.game_state.game_state_matrix = self.game.game_state_matrix.state_matrix_0
-        self.game_state.game_state_matrix_opponent = self.game.game_state_matrix.state_matrix_1
-        self.game_state.game = self.game
-        self.timing_data = {
-            "handle_events": [],
-            "update": [],
-            "draw": [],
-            "screen_blit": [],
-            "panel_game_draw": [],
-            "pygame_display_flip": [],
-            "update action": [],
-            "game state call": [],
-            "step call": [],
-            "set_state call": []
-        }
-        self.preview_start_time = None
-        self.action_ai_draw = None
-        self.index_action_ai = None
-        self.notification = Notify(self.game_state, self.screen.get_rect(), 1, 0.14, 0, 0.43)
-        self.notifications = []
-        self.ai_preview = False
-        self.round_index = 0
-
-
-class MyGameGui(GameGui):
-    """
-    This class represents the main GUI of the game, initializing the game window,
-    handling game states, and managing game components such as notifications, AI previews, and game timings.
-
-    Attributes:
-    ----------
     width : int
         The width of the game window, obtained from the display info.
     height : int
@@ -5402,7 +5368,7 @@ class MyGameGui(GameGui):
     fps : int
         Frames per second, controls the game's refresh rate.
     screen : pygame.Surface
-        The main surface where game elements are drawn, set to fullscreen mode.
+        The main surface where game elements are drawn, set to full-screen mode.
     clock : pygame.time.Clock
         An object to help track time within the game.
     running : bool
@@ -5447,7 +5413,8 @@ class MyGameGui(GameGui):
     load_cards(self, file_path: str)
         Loads game cards from a file and initializes them in the game.
     """
-    def __init__(self):
+
+    def __init__(self, fps=60):
         """
         Initialize the game's main components and set the initial game state.
 
@@ -5455,7 +5422,39 @@ class MyGameGui(GameGui):
         end panel, start panel, and console panel. Sets the initial end state as 'win'
         and the game state as 'normal'.
         """
-        super().__init__()
+        pygame.init()
+        info_object = pygame.display.Info()
+        self.width = info_object.current_w
+        self.height = info_object.current_h
+        self.fps = fps
+        self.screen = pygame.display.set_mode((self.width, self.height), pygame.FULLSCREEN)
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.cards = load_file_game('Gwent.csv')
+        self.game = Game(self.cards)
+        self.game_state = GameState()
+        self.game_state.game_state_matrix = self.game.game_state_matrix.state_matrix_0
+        self.game_state.game_state_matrix_opponent = self.game.game_state_matrix.state_matrix_1
+        self.game_state.game = self.game
+        self.timing_data = {
+            "handle_events": [],
+            "update": [],
+            "draw": [],
+            "screen_blit": [],
+            "panel_game_draw": [],
+            "pygame_display_flip": [],
+            "update action": [],
+            "game state call": [],
+            "step call": [],
+            "set_state call": []
+        }
+        self.preview_start_time = None
+        self.action_ai_draw = None
+        self.index_action_ai = None
+        self.notification = Notify(self.game_state, self.screen.get_rect(), 1, 0.14, 0, 0.43)
+        self.notifications = []
+        self.ai_preview = False
+        self.round_index = 0
         self.panel_game = PanelGame(self.game_state, self.screen.get_rect())
         self.pause_menu = PauseMenu(self.game_state, self.screen.get_rect())
         self.main_menu = MainMenu(self.game_state, self.screen.get_rect())
@@ -5549,34 +5548,34 @@ class MyGameGui(GameGui):
                     if result > 0:
                         if result == 1:
                             self.notifications.append(NotifyAction('win-round', 0, 0))
-                            self.game_state.results_player[self.round_index] = player_score
-                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.game_state.results_player[self.round_index] = str(player_score)
+                            self.game_state.results_opponent[self.round_index] = str(opponent_score)
                             self.round_index += 1
                         elif result == 2:
                             self.notifications.append(NotifyAction('lose-round', 0, 0))
-                            self.game_state.results_player[self.round_index] = player_score
-                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.game_state.results_player[self.round_index] = str(player_score)
+                            self.game_state.results_opponent[self.round_index] = str(opponent_score)
                             self.round_index += 1
                         elif result == 3:
                             self.notifications.append(NotifyAction('draw-round', 0, 0))
-                            self.game_state.results_player[self.round_index] = player_score
-                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.game_state.results_player[self.round_index] = str(player_score)
+                            self.game_state.results_opponent[self.round_index] = str(opponent_score)
                             self.round_index += 1
                         else:
                             if result == 4:
                                 self.game_state.end_state = 'lose'
-                                self.game_state.results_player[self.round_index] = player_score
-                                self.game_state.results_opponent[self.round_index] = opponent_score
+                                self.game_state.results_player[self.round_index] = str(player_score)
+                                self.game_state.results_opponent[self.round_index] = str(opponent_score)
                                 self.round_index += 1
                             elif result == 5:
                                 self.game_state.end_state = 'win'
-                                self.game_state.results_player[self.round_index] = player_score
-                                self.game_state.results_opponent[self.round_index] = opponent_score
+                                self.game_state.results_player[self.round_index] = str(player_score)
+                                self.game_state.results_opponent[self.round_index] = str(opponent_score)
                                 self.round_index += 1
                             else:
                                 self.game_state.end_state = 'draw'
-                                self.game_state.results_player[self.round_index] = player_score
-                                self.game_state.results_opponent[self.round_index] = opponent_score
+                                self.game_state.results_player[self.round_index] = str(player_score)
+                                self.game_state.results_opponent[self.round_index] = str(opponent_score)
                                 self.round_index += 1
                             self.game_state.set_state('end screen')
 
@@ -5676,8 +5675,8 @@ class MyGameGui(GameGui):
             if self.preview_start_time is None:
                 self.preview_start_time = pygame.time.get_ticks()
             elapsed_time = pygame.time.get_ticks() - self.preview_start_time
-            if elapsed_time < 500 and self.game.turn == 1 and not self.game_state.game_state_matrix[0][
-                147] and self.action_ai_draw is not None:
+            passed_opponent = self.game_state.game_state_matrix[0][147]
+            if elapsed_time < 500 and self.game.turn == 1 and not passed_opponent and self.action_ai_draw is not None:
                 self.action_ai_draw.draw(self.screen)
             else:
                 self.preview_start_time = None
@@ -5695,34 +5694,34 @@ class MyGameGui(GameGui):
                 if result > 0:
                     if result == 1:
                         self.notifications.append(NotifyAction('lose-round', 0, 0))
-                        self.game_state.results_player[self.round_index] = player_score
-                        self.game_state.results_opponent[self.round_index] = opponent_score
+                        self.game_state.results_player[self.round_index] = str(player_score)
+                        self.game_state.results_opponent[self.round_index] = str(opponent_score)
                         self.round_index += 1
                     elif result == 2:
                         self.notifications.append(NotifyAction('win-round', 0, 0))
-                        self.game_state.results_player[self.round_index] = player_score
-                        self.game_state.results_opponent[self.round_index] = opponent_score
+                        self.game_state.results_player[self.round_index] = str(player_score)
+                        self.game_state.results_opponent[self.round_index] = str(opponent_score)
                         self.round_index += 1
                     elif result == 3:
                         self.notifications.append(NotifyAction('draw-round', 0, 0))
-                        self.game_state.results_player[self.round_index] = player_score
-                        self.game_state.results_opponent[self.round_index] = opponent_score
+                        self.game_state.results_player[self.round_index] = str(player_score)
+                        self.game_state.results_opponent[self.round_index] = str(opponent_score)
                         self.round_index += 1
                     else:
                         if result == 4:
                             self.game_state.end_state = 'win'
-                            self.game_state.results_player[self.round_index] = player_score
-                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.game_state.results_player[self.round_index] = str(player_score)
+                            self.game_state.results_opponent[self.round_index] = str(opponent_score)
                             self.round_index += 1
                         elif result == 5:
                             self.game_state.end_state = 'lose'
-                            self.game_state.results_player[self.round_index] = player_score
-                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.game_state.results_player[self.round_index] = str(player_score)
+                            self.game_state.results_opponent[self.round_index] = str(opponent_score)
                             self.round_index += 1
                         else:
                             self.game_state.end_state = 'draw'
-                            self.game_state.results_player[self.round_index] = player_score
-                            self.game_state.results_opponent[self.round_index] = opponent_score
+                            self.game_state.results_player[self.round_index] = str(player_score)
+                            self.game_state.results_opponent[self.round_index] = str(opponent_score)
                             self.round_index += 1
                         self.game_state.set_state('end screen')
                 if result < 3 and self.game.turn == 0:
