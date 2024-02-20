@@ -1,11 +1,13 @@
 import copy
 import json
-import random
 
 import numpy as np
 import pygame
 
 from Game.Game import Game
+from agent import ActionChooser
+from agent import AgentPPO
+from agent import Net
 
 
 def load_file(file_path):
@@ -5464,6 +5466,10 @@ class MyGameGui:
         self.game_state.end_state = 'win'
         self.game_state.set_state('normal')
 
+        self.agent = AgentPPO(0.99, 463, Net(), 0.0003, beta_entropy=0.001, id=1, name=f'agents/gwent.pt')
+        self.agent.load_model()
+        self.action_chooser = ActionChooser()
+
     def run(self):
         """
         Main game loop. Handles events, updates game state, and draws on the screen.
@@ -5630,11 +5636,9 @@ class MyGameGui:
         """
         if self.index_action_ai is None:
             bool_actions, actions = self.game.valid_actions()
-            index = random.randrange(len(actions))
-            self.index_action_ai = index
-            split = actions[index].split(',')
-            if int(split[0]) > -1:
-                preview_card = Card(int(split[0]), data, self.game_state)
+            self.index_action_ai = self.action_chooser.choose_action_AI(self.game, self.agent)
+            if int(self.index_action_ai) > -1:
+                preview_card = Card(self.game.get_id_card_of_action(self.index_action_ai), data, self.game_state)
                 self.action_ai_draw = CardPreview(self.game_state, self.screen.get_rect(), preview_card)
                 self.ai_preview = True
             else:
@@ -5687,9 +5691,9 @@ class MyGameGui:
                 if self.game_state.stepper_on:
                     self.game_state.stepper.step(self.game.turn,
                                                  self.game.get_index_of_action(actions[self.index_action_ai]))
-                result = self.game.step(self.game.get_index_of_action(actions[self.index_action_ai]))
+                result = self.game.step(self.index_action_ai)
                 self.game_state.set_state('normal')
-                if actions[self.index_action_ai] == '-1':
+                if self.index_action_ai == '-1':
                     self.notifications.append(NotifyAction('op-pass', 0, 0))
                 if result > 0:
                     if result == 1:

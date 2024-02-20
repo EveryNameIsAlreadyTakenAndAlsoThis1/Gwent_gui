@@ -278,6 +278,12 @@ class Game:
             placement=card_data['Placement'],
         )
 
+    def get_id_card_of_action(self, action):
+        full_format=self.actions[action]
+        split = full_format.split(',')
+        ID=int(split[0])
+        return ID
+
     def create_actions(self):
         """
         Creates actions for all cards in the game.
